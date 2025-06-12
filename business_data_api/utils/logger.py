@@ -10,14 +10,13 @@ def setup_logger(
                 level: int = logging.DEBUG,
                 log_file: Optional[str] = None,
                 max_bytes: int = 1 * 1024 * 1024, 
-                backup_count: int = 1,
+                backup_count: int = 1
     ) -> logging.Logger:
 
     logger = logging.getLogger(name)
     if logger.hasHandlers():
-        raise Exception(
-            f"Logger '{name}' already has handlers. Please remove existing handlers before setting up a new logger."
-        )
+        return logger
+
 
     logger.setLevel(level)
 
