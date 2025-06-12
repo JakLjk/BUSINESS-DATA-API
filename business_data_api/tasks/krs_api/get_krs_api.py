@@ -70,7 +70,7 @@ class KRSApi():
                             f"URL: {url}")
         return response
 
-    def get_odpis_aktualny(self, krs:str, rejestr:str) -> dict:
+    def _get_odpis_aktualny(self, krs:str, rejestr:str) -> dict:
         """Retrieves the current extract for a given KRS number and register.
         Args:
             krs (str): The KRS number of the company.
@@ -81,7 +81,7 @@ class KRSApi():
         url = self._links["odpis_aktualny"].format(krs=krs, rejestr=rejestr)
         return self._make_request(url).json()
 
-    def get_odpis_pelny(self, krs:str, rejestr:str) -> dict:
+    def _get_odpis_pelny(self, krs:str, rejestr:str) -> dict:
         """Retrieves the full extract for a given KRS number and register.
         Args:
             krs (str): The KRS number of the company.
@@ -91,6 +91,20 @@ class KRSApi():
         self._check_parameter_rejestr(rejestr)
         url = self._links["odpis_pełny"].format(krs=krs, rejestr=rejestr)
         return self._make_request(url).json()
+
+    def get_odpis(self, krs:str, rejestr:str, typ_odpisu:str="aktualny") -> dict:
+        """Retrieves the KRS extract (current or full) for a given KRS number and register.
+        Args:
+            krs (str): The KRS number of the company.
+            rejestr (str): The register type, P - business, S - associations.
+            typ_odpisu (str): The type of extract, either 'aktualny' for current or 'pelny' for full.
+        """
+        if typ_odpisu == "aktualny":
+            return self._get_odpis_aktualny(krs, rejestr)
+        elif typ_odpisu == "pelny":
+            return self._get_odpis_pelny(krs, rejestr)
+        else:
+            raise InvalidParameterException("Invalid type of extract. Use 'aktualny' or 'pelny'.")
 
     def get_historia_zmian(self, dzien:str, godzinaOd:str, godzinaDo:str) -> dict:
         """Retrieves change history for a specific date and time range.
