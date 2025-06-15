@@ -281,6 +281,7 @@ class KRSDokumentyFinansowe():
             raise WebpageThrottlingException("\nWebpage sent throttling error"
                                             "\nBigger intervals between requests may be necessary"
                 )
+
     def get_document_list(self):
         response = self._request_main_page()
         num_pages = self._extract_number_of_pages(response)
