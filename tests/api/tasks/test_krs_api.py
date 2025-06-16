@@ -18,7 +18,7 @@ def test_odpis_aktualny_invalid_krs_length():
     with pytest.raises(InvalidParameterException):
         krs_api._get_odpis_aktualny(krs=krs, rejestr="P")
 
-def test_odpis_aktualny_invalid_krs_type():
+def test_odpis_aktualny_invalid_krs_variable_type():
     krs_api = KRSApi()
     krs = 1234567890 
     with pytest.raises(InvalidParameterException):

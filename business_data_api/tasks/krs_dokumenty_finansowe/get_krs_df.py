@@ -15,7 +15,6 @@ from business_data_api.tasks.exceptions import (
                                             WebpageThrottlingException)
 
 
-
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 
@@ -26,7 +25,6 @@ class KRSDokumentyFinansowe():
     KRS_DF_URL = "https://ekrs.ms.gov.pl/rdf/pd/search_df"
 
     def __init__(self, krs_number):
-        # TODO provide KRS in init and check - each KRSDokuemnty finansowe object should be used for specific KRS
         self._session = requests.Session()
         self._ajax_headers = {
             "Faces-Request": "partial/ajax",
@@ -206,6 +204,7 @@ class KRSDokumentyFinansowe():
             row_dict = dict(zip(table_headers, row))
             row_dict['document_hash_id'] = self._helper_hash_string(
                 self._helper_normalize_string(
+                    self.krs_number +
                     row_dict['document_type'] +
                     row_dict['document_name'] +
                     row_dict['document_from'] +
@@ -230,8 +229,6 @@ class KRSDokumentyFinansowe():
     def _check_cannot_display_page(self, response: requests.Response) -> bool:
         """Error can appear when stale viewstate was provided"""
         response_text = response.text
-        print(response_text)
-        print("////_check_cannot_display_page")
         try:
             root = etree.fromstring(response_text.encode('utf-8'))
             viewroot_update = root.xpath('.//update[@id="javax.faces.ViewRoot"]')[0].text
@@ -275,8 +272,6 @@ class KRSDokumentyFinansowe():
         except IndexError:
             return
         soup = BeautifulSoup(webpage_throttling_element, 'html.parser')
-        print(soup)
-        print("////_check_webpage_throttling")
         if 'Wymagane oczekiwanie pomiędzy kolejnymi wywołaniami' in soup.get_text():
             raise WebpageThrottlingException("\nWebpage sent throttling error"
                                             "\nBigger intervals between requests may be necessary"
@@ -317,70 +312,10 @@ class KRSDokumentyFinansowe():
                         f.write(document_data)
 
 
-                
-
-
-def test():
-    krsdf = KRSDokumentyFinansowe("0000057814")
-    # krsdf = KRSDokumentyFinansowe("1234567890")
-    f = krsdf.get_document_list()
-    print(f)
-    print("\n".join([f"{row['document_id']}-{row['document_type']} - {row['document_from']} - {row['document_hash_id']}" for row in f]))
-    print(len(f))
-    document_mock_hashes = [
-        '1efafb5d855c95440446f70412e14ffcf0c267050b4167003c6554739c516142',
-        'cad3cb20c83529ad55e255c16f9dabf3a6f03647ca23812ef0a4b0ef002c40c5',
-        '6fcf6bb1131a8066c27a024544af6588068986c3731b2aea1b6e53ea8e7c0eee',
-        '89eb162b724b986501cc27904ef5576b90f117828955ed3a966ed61fd66666b3'
-    ]
-    krsdf.download_document(document_mock_hashes)
-    
-    # a =  krsdf._request_main_page()
-    # # print(a.text)
-    # # b = krsdf._extract_number_of_pages(a)
-    # # c = krsdf._request_page(4, a)
-    # # d = krsdf._extract_documents_table_data(c)
-    # # e = krsdf._request_document_details(c, d[0]['internal_element_id'])
-    # # e = krsdf._request_document_details(c, 'xd')
-    # # print(e.text)
-    # # f = krsdf._extract_pokaz_tresc_dokumentu_id(e)
-    # # n, g = krsdf._request_pokaz_tresc_dokumentu(e, f)
-    # # print(g.text)
-    # # print(n)
-    # print(a.text)
-
-
-    # a =  krsdf._request_main_page("0000057814")
-    # b = krsdf._number_of_pages(a)
-    # c = krsdf._request_page(1, a)
-    # d = krsdf._documents_table_data(c)
-    # e = krsdf._request_document_details(c, d[0][-1])
-    # f = krsdf._extract_pokaz_tresc_dokumentu_id(e)
-    # g = krsdf._request_pokaz_tresc_dokumentu(e, f)
-    # print(len(d))
-    # print(len(e.text))
-    # print(len(f))
-    # save_response_to_file(g, "document_content.xml")
-   
 
 
 
-test()
 
-
-# from typing import NewType
-# import requests
-
-# PageResponse = NewType("PageResponse", requests.Response)
-# MainPageResponse = NewType("MainPageResponse", requests.Response)
-
-# def _request_page(self, page_num: int, response: requests.Response) -> PageResponse:
-#     ...
-#     return PageResponse(self._session.post(...))
-
-# def _request_main_page(self, krs_number: str) -> MainPageResponse:
-#     ...
-#     return MainPageResponse(self._session.post(...))
-
-# def _request_document_details(self, response: PageResponse, details_id: str) -> dict:
-#     ...
+# def test():
+#     krs = "9999999999"
+#     krsdf = KRSDokumentyFinansowe(krs)
