@@ -10,7 +10,7 @@ from business_data_api.utils.logger import setup_logger
 from business_data_api.api.routes.root import bp_root
 from business_data_api.api.routes.krs_api import bp_krs_api
 from business_data_api.api.routes.krs_dokumenty_finansowe import bp_krs_df
-
+from business_data_api.db import session
 
 
 
@@ -27,11 +27,16 @@ def initialise_flask_api(testing=False):
         app.config["DEBUG"] = False
 
     api_log.info("Setting up Redis connection...")
-    redis_conn = Redis.from_url(redis_url)
+    app.redis = Redis.from_url(redis_url)
     api_log.debug("Testing Redis connection...")
-    redis_conn.ping()
-    api_log.info("Redis connection established successfully.")
-    app.redis = redis_conn
+    app.redis.ping()
+    api_log.info("Setting up Redis queue...")
+    app.queue = Queue
+    api_log.info("Setting up PostgreSQL connection...")
+    app.psql_session = psql_session
+    api_log.info("Testing PostgreSQL connection")
+    api.psql_session.execute("SELECT 1")
+    
 
     api_log.debug("Registering API blueprints...")
     app.register_blueprint(bp_root)

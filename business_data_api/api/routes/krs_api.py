@@ -4,6 +4,7 @@ from business_data_api.utils.flask_utils.json_response_template import compile_m
 from business_data_api.tasks.krs_api.get_krs_api import KRSApi
 from business_data_api.tasks.exceptions import InvalidParameterException, EntityNotFoundException
 
+
 bp_krs_api = Blueprint("bp_krs_api", __name__, url_prefix="/krs-api")
 
 

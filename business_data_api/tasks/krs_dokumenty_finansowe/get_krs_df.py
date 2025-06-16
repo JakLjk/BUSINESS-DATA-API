@@ -13,6 +13,8 @@ from business_data_api.tasks.exceptions import (
                                             InvalidParameterException,
                                             ScrapingFunctionFailed,
                                             WebpageThrottlingException)
+from business_data_api.db import psql_session
+from busienss_data_api.db.models import ScrapedKrsDF
 
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
@@ -275,7 +277,11 @@ class KRSDokumentyFinansowe():
         if 'Wymagane oczekiwanie pomiędzy kolejnymi wywołaniami' in soup.get_text():
             raise WebpageThrottlingException("\nWebpage sent throttling error"
                                             "\nBigger intervals between requests may be necessary"
-                )
+                                            )
+
+    def _save_to_postgresql(self, documents_to_db: List):
+        print(documents_to_db)
+        print(len(documents_to_db))
 
     def get_document_list(self):
         response = self._request_main_page()
@@ -291,31 +297,40 @@ class KRSDokumentyFinansowe():
             document_hash_id_s = [document_hash_id_s]
         response = self._request_main_page()
         num_pages = self._extract_number_of_pages(response)
+        documents_to_db = []
         for n_page in range(1, num_pages + 1):
             response = self._request_page(n_page, response)
             table = self._extract_documents_table_data(response)
-            matched_document_ids = [(row['internal_element_id'], row['document_hash_id'])
-                for row in table if row['document_hash_id'] in document_hash_id_s]
-            for internal_id, hash_id in matched_document_ids:
-                request_document_details = self._request_document_details(response, internal_id)
-                pokaz_tresc_dokumentu_id = self._extract_pokaz_tresc_dokumentu_id(request_document_details)
-                document_name, document_data = self._request_pokaz_tresc_dokumentu(
-                                        request_document_details, 
-                                        pokaz_tresc_dokumentu_id)
+            matched_documents = [row for row in table if row['document_hash_id'] in document_hash_id_s]
+            for document in matched_documents:
+                internal_id = document['document_id']
+                hash_id = document['hash_id']
+                request_document_details = self._request_document_details(
+                                                                    response, 
+                                                                    internal_id)
+                pokaz_tresc_dokumentu_id = self._extract_pokaz_tresc_dokumentu_id(
+                                                                    request_document_details)
+                document_save_name, document_data = self._request_pokaz_tresc_dokumentu(
+                                                                    request_document_details, 
+                                                                    pokaz_tresc_dokumentu_id)
                 file_extension = document_name.split('.')[-1]
-                document_save_name = hash_id + '.' + file_extension
-                if isinstance(document_data, requests.Response):
-                    with open(document_save_name, 'wb') as f:
-                        f.write(document_data.content)
-                else:
-                    with open(document_save_name, 'w') as f:
-                        f.write(document_data)
+                
+                save_file = {
+                    'hash_id':hash_id,
+                    'krs':self.krs_number,
+                    'document_internal_id':document['internal_element_id'],
+                    'document_type':document['document_type'],
+                    'document_name':document['document_name']
+                    'document_date_from':document['document_from'],
+                    'document_date_to':document['date_to'],
+                    'document_status':document['status'],
+                    'content_type':file_extension,
+                    'content_content':document_data,
+                    'save_name':document_save_name
+                    }
+                documents_to_db.append(save_file)
+        self._save_to_postgresql(documents_to_db)
 
 
 
 
-
-
-# def test():
-#     krs = "9999999999"
-#     krsdf = KRSDokumentyFinansowe(krs)
