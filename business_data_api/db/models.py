@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, LargeBinary, TIMESTAMP
+from sqlalchemy import Column, String, Text, LargeBinary, TIMESTAMP, Integer
 from sqlalchemy.sql import func
 from . import Base
 
@@ -17,6 +17,6 @@ class ScrapedKrsDF(Base):
     status = Column(String, nullable=False, default="pending")
     error_message = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now()),
-    file_extension = Column(String),
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    file_extension = Column(String)
     save_name = Column(String)

@@ -14,7 +14,7 @@ from business_data_api.tasks.exceptions import (
                                             ScrapingFunctionFailed,
                                             WebpageThrottlingException)
 from business_data_api.db import psql_session
-from busienss_data_api.db.models import ScrapedKrsDF
+from business_data_api.db.models import ScrapedKrsDF
 
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
@@ -56,7 +56,6 @@ class KRSDokumentyFinansowe():
     def _request_main_page(self) -> requests.Response:
         response = self._session.get(self.KRS_DF_URL)
         soup = BeautifulSoup(response.text, "html.parser")
-        
         # fetching initial viewstate
         viewstate = soup.find("input", {"name": "javax.faces.ViewState"}).get("value")
 
@@ -279,9 +278,25 @@ class KRSDokumentyFinansowe():
                                             "\nBigger intervals between requests may be necessary"
                                             )
 
-    def _save_to_postgresql(self, documents_to_db: List):
-        print(documents_to_db)
-        print(len(documents_to_db))
+    def _save_to_postgresql(self,documents_to_db: List[ScrapedKrsDF]):
+        session = psql_session()
+        for document in documents_to_db:
+            try: 
+                record = ScrapedKrsDF(**document)
+                session.merge(record)
+                session.commit()
+            except Exception as e:
+                record = ScrapedKrsDF(
+                    hash_id = document['hash_id'],
+                    status = 'failed',
+                    error_message = e
+                )
+                session.merge(record)
+                session.commit
+                raise e
+            
+            finally:
+                session.close()
 
     def get_document_list(self):
         response = self._request_main_page()
@@ -315,22 +330,40 @@ class KRSDokumentyFinansowe():
                                                                     pokaz_tresc_dokumentu_id)
                 file_extension = document_name.split('.')[-1]
                 
-                save_file = {
+                record = {
                     'hash_id':hash_id,
                     'krs':self.krs_number,
                     'document_internal_id':document['internal_element_id'],
                     'document_type':document['document_type'],
-                    'document_name':document['document_name']
+                    'document_name':document['document_name'],
                     'document_date_from':document['document_from'],
                     'document_date_to':document['date_to'],
                     'document_status':document['status'],
                     'content_type':file_extension,
                     'content_content':document_data,
-                    'save_name':document_save_name
-                    }
-                documents_to_db.append(save_file)
+                    'save_name':document_save_name,
+                    'status':'success'
+                }
+                documents_to_db.append(record)
         self._save_to_postgresql(documents_to_db)
 
 
 
 
+def test():
+    hash_ids = [
+        "a37d56ff51b3a1203c532a1ebe8fbe0a8d6a14ba40b6011fcc8d3dda7935e40e",
+        "a1e27a043cea3bedda307715500a50f683917008c4923511e03cfbbe477f9c8a",
+        "be22771e67e361fecc4b997fc9836efd7791db74c1e7d4ac987a48ec57928d88"
+    ]
+    krsdf = KRSDokumentyFinansowe("0000057814")
+    # print(krsdf.get_document_list())
+    krsdf.download_document(hash_ids)
+
+test()
+
+
+# TODO add function for checking if KRSDF Is not during maintenance
+# TODO postgresql function for flask to fetch statuses of each document being scraped
+# TODO addiitonal check - we check if documents send to worker are scrpaed (done status in psotgresql), and if
+# not yet scrpaed we make sure that the worker process is still running
