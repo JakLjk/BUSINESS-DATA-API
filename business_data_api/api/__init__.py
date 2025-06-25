@@ -23,8 +23,10 @@ def create_app(testing:bool = False) -> FastAPI:
     app.state.redis = Redis.from_url(redis_url)
     api_log.debug("Testing Redis connection...")
     app.state.redis.ping()
-    api_log.info("Setting up Redis queue...")
-    app.state.queue = Queue
+    api_log.info("Setting up Redis queues...")
+    app.state.queues = {
+        "KRSDF": Queue("KRSDF", connection=app.state.redis)
+    }
     api_log.info("Setting up PostgreSQL connection...")
     app.state.psql_session = psql_session()
     api_log.info("Testing PostgreSQL connection")

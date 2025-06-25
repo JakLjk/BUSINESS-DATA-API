@@ -289,18 +289,10 @@ class KRSDokumentyFinansowe():
                 session.merge(record)
                 session.commit()
             except Exception as e:
-                record = ScrapedKrsDF(
-                    hash_id = document['hash_id'],
-                    scraping_status = ScrapingStatus.FAILED,
-                    scraping_error_message = e
-                )
-                session.merge(record)
-                session.commit()
                 session.close()
                 raise e
         session.close()
                 
-
     def _save_to_file(self, 
         filename:str, 
         type:Literal['text', 'binary'],
@@ -330,7 +322,6 @@ class KRSDokumentyFinansowe():
         return table_data
 
     def download_document(self, document_hash_id_s: str | List):
-        # TODO add logic that will update record as failed if function fails
         if isinstance(document_hash_id_s, str):
             document_hash_id_s = [document_hash_id_s]
         response = self._request_main_page()
@@ -376,17 +367,12 @@ class KRSDokumentyFinansowe():
                 documents_to_db.append(record)
         self._save_to_postgresql(documents_to_db)
 
-        
 
-def test():
-    hashs = [
-        "ef030fa04d4430446185035eeba4a968055c0a2dd833b4d4d23b99db2cc4729a",
-        "e8470235e9b3000fb53184443ec449d3010756587e935cccf1203332247cf94f"
-    ]
-    krsdf = KRSDokumentyFinansowe("0000057814")
-    # print(krsdf.get_document_list())
-    krsdf.download_document(hashs)
+def task_get_document_list(krs:str):
+    krsdf = KRSDokumentyFinansowe(krs)
+    return krsdf.get_document_list()
 
-
-
-test()
+def task_get_documents_contents(krs:str,
+                                hash_ids: List):
+    krsdf = KRSDokumentyFinansowe(krs)
+    return krsdf.get_documents(hash_ids)
