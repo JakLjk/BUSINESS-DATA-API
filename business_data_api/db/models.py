@@ -24,11 +24,17 @@ class ScrapedKrsDF(Base):
     document_content_save_name = Column(String)
     document_content_file_extension = Column(String)
     document_content = Column(LargeBinary)
-    scraping_status = Column(PSQLEnum(ScrapingStatus), 
+    record_created_at = Column(TIMESTAMP, server_default=func.now())
+    record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+class RedisScrapingRegistry(Base):
+    __tablename__ = "redis_scraping_registry"
+    hash_id = Column(String, primary_key=True)
+    job_id = Column(String)
+    job_status = Column(PSQLEnum(ScrapingStatus), 
                             nullable=False,
                             default=ScrapingStatus.PENDING)
     scraping_error_message = Column(Text)
     record_created_at = Column(TIMESTAMP, server_default=func.now())
     record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-
 
