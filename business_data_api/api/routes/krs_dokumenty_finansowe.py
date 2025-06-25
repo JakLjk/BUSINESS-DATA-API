@@ -1,20 +1,21 @@
-from flask import Blueprint, jsonify, url_for, request
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.requests import Request
+from typing import Literal
 
-from business_data_api.tasks.krs_dokumenty_finansowe import KRSDokumentyFinansowe
+from business_data_api.utils.dict_response_template import compile_message
+from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
+
+router = APIRouter()
+
+@router.get("/health", summary="API KRS-DF health check")
+async def health():
+    return {"status": "ok", "message": "API is running"}
 
 
-bp_krs_df = Blueprint("bp_krs_df", __name__, url_prefix="/krs-df")
-
-@bp_krs_df.route("/health", methods=["GET"])
-def health_check():
-    """
-    Health check endpoint to verify the API is running.
-    """
-    return jsonify({"status": "ok", "message": "KRS Dokumenty Finansowe is running"}), 200
-
-@bp_krs_df.route("/get-document-names", mehtods=["GET"])
-def get_document_list_for_krs()
-    krs = request.args.get("krs")
+@router.get("/get-document-names", summary="Get names of available documents for KRS number")
+async def get_document_names():
     pass
 
-    
+@router.get("/get-documents", summary="Get specified documents for KRS")
+async def get_documents():
+    pass

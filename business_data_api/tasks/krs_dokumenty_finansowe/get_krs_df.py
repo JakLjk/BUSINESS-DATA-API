@@ -1,8 +1,10 @@
+import os
 import requests
 import re
 import warnings
 import unicodedata
 import hashlib
+from typing import Literal
 from lxml import etree
 from lxml.etree import XMLSyntaxError
 from bs4 import BeautifulSoup
@@ -250,9 +252,10 @@ class KRSDokumentyFinansowe():
         or webpage structure change)"""
         if 'error' in filename:
             raise ScrapingFunctionFailed(
-            "\nFile name = Error most probably means that the id provided"
-            "\nby '_extract_pokaz_tresc_dokumentu_id' is incorrect"
-            "\n(due to scraping error or webpage structure change)")
+            f"\nFile name = Error most probably means that the id provided"
+            f"\nby '_extract_pokaz_tresc_dokumentu_id' is incorrect"
+            f"\n(due to scraping error or webpage structure change)"
+            f"Filename: {filename}")
 
     def _check_exist_documents_for_krs(self, response: requests.Response) -> bool:
         response_text = response.text
@@ -298,6 +301,25 @@ class KRSDokumentyFinansowe():
             finally:
                 session.close()
 
+    def _save_to_file(self, 
+        filename:str, 
+        type:Literal['text', 'binary'],
+        content,
+        path:str = "",
+        ):
+        if path and not os.path.exists(path):
+            os.makedirs(path)
+        full_path = os.path.join(path, filename)
+        mode = 'w' if type=='text' else 'wb'
+        with open(full_path, mode) as f:
+            if type == 'text':
+                f.write(content)
+            else:
+                if isinstance(content, str):
+                    f.write(content.encode('utf-8'))
+                else:
+                    f.write(content)
+
     def get_document_list(self):
         response = self._request_main_page()
         num_pages = self._extract_number_of_pages(response)
@@ -313,13 +335,16 @@ class KRSDokumentyFinansowe():
         response = self._request_main_page()
         num_pages = self._extract_number_of_pages(response)
         documents_to_db = []
+        # Scan pages in order to find documents that were marked to download
         for n_page in range(1, num_pages + 1):
             response = self._request_page(n_page, response)
             table = self._extract_documents_table_data(response)
+            # Create list with hash ids of docuemnts that exist on current page
             matched_documents = [row for row in table if row['document_hash_id'] in document_hash_id_s]
+            # Download each matched document
             for document in matched_documents:
-                internal_id = document['document_id']
-                hash_id = document['hash_id']
+                internal_id = document['internal_element_id']
+                hash_id = document['document_hash_id']
                 request_document_details = self._request_document_details(
                                                                     response, 
                                                                     internal_id)
@@ -328,42 +353,12 @@ class KRSDokumentyFinansowe():
                 document_save_name, document_data = self._request_pokaz_tresc_dokumentu(
                                                                     request_document_details, 
                                                                     pokaz_tresc_dokumentu_id)
-                file_extension = document_name.split('.')[-1]
-                
-                record = {
-                    'hash_id':hash_id,
-                    'krs':self.krs_number,
-                    'document_internal_id':document['internal_element_id'],
-                    'document_type':document['document_type'],
-                    'document_name':document['document_name'],
-                    'document_date_from':document['document_from'],
-                    'document_date_to':document['date_to'],
-                    'document_status':document['status'],
-                    'content_type':file_extension,
-                    'content_content':document_data,
-                    'save_name':document_save_name,
-                    'status':'success'
-                }
-                documents_to_db.append(record)
-        self._save_to_postgresql(documents_to_db)
+                file_extension = document_save_name.split('.')[-1]
+                print("SAVING")
+                print(document_save_name)
+                self._save_to_file(document_save_name, 'text', document_data.text)
+
+        
 
 
 
-
-def test():
-    hash_ids = [
-        "a37d56ff51b3a1203c532a1ebe8fbe0a8d6a14ba40b6011fcc8d3dda7935e40e",
-        "a1e27a043cea3bedda307715500a50f683917008c4923511e03cfbbe477f9c8a",
-        "be22771e67e361fecc4b997fc9836efd7791db74c1e7d4ac987a48ec57928d88"
-    ]
-    krsdf = KRSDokumentyFinansowe("0000057814")
-    # print(krsdf.get_document_list())
-    krsdf.download_document(hash_ids)
-
-test()
-
-
-# TODO add function for checking if KRSDF Is not during maintenance
-# TODO postgresql function for flask to fetch statuses of each document being scraped
-# TODO addiitonal check - we check if documents send to worker are scrpaed (done status in psotgresql), and if
-# not yet scrpaed we make sure that the worker process is still running

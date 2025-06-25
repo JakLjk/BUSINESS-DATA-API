@@ -1,46 +1,37 @@
 import os
-
-from flask import Flask
+from fastapi import FastAPI
 from redis import Redis
 from rq import Queue
 from dotenv import load_dotenv
+from sqlalchemy import text
 
 from business_data_api.utils.logger import setup_logger
+from business_data_api.api.routes.krs_api import router as krs_api_router
+from business_data_api.api.routes.krs_dokumenty_finansowe import router as krs_df_router
+from business_data_api.db import psql_session
 
-from business_data_api.api.routes.root import bp_root
-from business_data_api.api.routes.krs_api import bp_krs_api
-from business_data_api.api.routes.krs_dokumenty_finansowe import bp_krs_df
-from business_data_api.db import session
-
-
-
-def initialise_flask_api(testing=False):
+def create_app(testing:bool = False) -> FastAPI:
     api_log = setup_logger(name="api_log")
     api_log.debug("Loading environment variables...")
     load_dotenv()
     redis_url = os.getenv("REDIS_URL")
 
-    api_log.info("Initialising Flask API...")
-    app = Flask(__name__)
-    if testing:
-        app.config["TESTING"] = True
-        app.config["DEBUG"] = False
+    api_log.info("Initialising Fast API...")
+    app = FastAPI(title="Business Data API", debug=(not testing))
 
     api_log.info("Setting up Redis connection...")
-    app.redis = Redis.from_url(redis_url)
+    app.state.redis = Redis.from_url(redis_url)
     api_log.debug("Testing Redis connection...")
-    app.redis.ping()
+    app.state.redis.ping()
     api_log.info("Setting up Redis queue...")
-    app.queue = Queue
+    app.state.queue = Queue
     api_log.info("Setting up PostgreSQL connection...")
-    app.psql_session = psql_session
+    app.state.psql_session = psql_session()
     api_log.info("Testing PostgreSQL connection")
-    api.psql_session.execute("SELECT 1")
-    
+    app.state.psql_session.execute(text("SELECT 1"))
 
     api_log.debug("Registering API blueprints...")
-    app.register_blueprint(bp_root)
-    app.register_blueprint(bp_krs_api)
-    app.register_blueprint(bp_krs_df)
+    app.include_router(krs_api_router, prefix="/krs-api")
+    app.include_router(krs_df_router, prefix="/krs-df")
 
     return app
