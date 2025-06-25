@@ -1,22 +1,34 @@
 from sqlalchemy import Column, String, Text, LargeBinary, TIMESTAMP, Integer
 from sqlalchemy.sql import func
+from sqlalchemy import Enum as PSQLEnum
+from enum import Enum
+
 from . import Base
 
+class ScrapingStatus(Enum):
+    PENDING = "pending"
+    FINISHED = "finished"
+    FAILED = "failed"
+
+
 class ScrapedKrsDF(Base):
-    __tablename__ = "scraped_krs_df"
+    __tablename__ = "krs_df_documents"
     hash_id = Column(String, primary_key=True)
-    krs = Column(String)
-    document_internal_id = Column(Integer)
+    krs_number = Column(String)
+    document_internal_id = Column(String)
     document_type = Column(String)
     document_name = Column(String)
     document_date_from = Column(String)
     document_date_to = Column(String)
     document_status = Column(String)
-    content_type = Column(String)
-    content_content = Column(LargeBinary)
-    status = Column(String, nullable=False, default="pending")
-    error_message = Column(Text)
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-    file_extension = Column(String)
-    save_name = Column(String)
+    document_content_save_name = Column(String)
+    document_content_file_extension = Column(String)
+    document_content = Column(LargeBinary)
+    scraping_status = Column(PSQLEnum(ScrapingStatus), 
+                            nullable=False,
+                            default=ScrapingStatus.PENDING)
+    scraping_error_message = Column(Text)
+    record_created_at = Column(TIMESTAMP, server_default=func.now())
+    record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+

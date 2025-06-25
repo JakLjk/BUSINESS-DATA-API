@@ -16,7 +16,7 @@ from business_data_api.tasks.exceptions import (
                                             ScrapingFunctionFailed,
                                             WebpageThrottlingException)
 from business_data_api.db import psql_session
-from business_data_api.db.models import ScrapedKrsDF
+from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus
 
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
@@ -154,7 +154,7 @@ class KRSDokumentyFinansowe():
             filename = match.group(1)
             self._check_file_name_error(filename)
             self._check_cannot_display_page(response)
-            return filename, response
+            return filename, response.text
 
     def _extract_current_viewstate(self, response: requests.Response) -> str:
         response_text = response.text
@@ -221,7 +221,7 @@ class KRSDokumentyFinansowe():
         root = etree.fromstring(response_text.encode('utf-8'))
         element_pokaz_tresc_dokumentu = root.xpath('.//update[@id="searchForm"]')[0].text
         soup = BeautifulSoup(element_pokaz_tresc_dokumentu, 'html.parser')
-        return soup.find('a', text='Pokaż treść dokumentu')['id']
+        return soup.find('a', string='Pokaż treść dokumentu')['id']
 
     def _helper_normalize_string(self, string:str) -> str:
         return unicodedata.normalize("NFKD", string).strip().lower().replace('\xa0', ' ')
@@ -281,7 +281,7 @@ class KRSDokumentyFinansowe():
                                             "\nBigger intervals between requests may be necessary"
                                             )
 
-    def _save_to_postgresql(self,documents_to_db: List[ScrapedKrsDF]):
+    def _save_to_postgresql(self ,documents_to_db: List):
         session = psql_session()
         for document in documents_to_db:
             try: 
@@ -291,15 +291,15 @@ class KRSDokumentyFinansowe():
             except Exception as e:
                 record = ScrapedKrsDF(
                     hash_id = document['hash_id'],
-                    status = 'failed',
-                    error_message = e
+                    scraping_status = ScrapingStatus.FAILED,
+                    scraping_error_message = e
                 )
                 session.merge(record)
-                session.commit
-                raise e
-            
-            finally:
+                session.commit()
                 session.close()
+                raise e
+        session.close()
+                
 
     def _save_to_file(self, 
         filename:str, 
@@ -330,6 +330,7 @@ class KRSDokumentyFinansowe():
         return table_data
 
     def download_document(self, document_hash_id_s: str | List):
+        # TODO add logic that will update record as failed if function fails
         if isinstance(document_hash_id_s, str):
             document_hash_id_s = [document_hash_id_s]
         response = self._request_main_page()
@@ -354,11 +355,38 @@ class KRSDokumentyFinansowe():
                                                                     request_document_details, 
                                                                     pokaz_tresc_dokumentu_id)
                 file_extension = document_save_name.split('.')[-1]
-                print("SAVING")
-                print(document_save_name)
-                self._save_to_file(document_save_name, 'text', document_data.text)
+                document_data = document_data.encode('utf-8')
+
+
+                record = {
+                    'hash_id':hash_id,
+                    'krs_number':self.krs_number,
+                    'document_internal_id':document['internal_element_id'],
+                    'document_type':document['document_type'],
+                    'document_name':document['document_name'],
+                    'document_date_from':document['document_from'],
+                    'document_date_to':document['document_to'],
+                    'document_status':document['document_status'],
+                    'document_content_save_name':document_save_name,
+                    'document_content':document_data,
+                    'scraping_status':ScrapingStatus.FINISHED,
+                    'scraping_error_message':'',
+                    "document_content_file_extension":file_extension
+                    }
+                documents_to_db.append(record)
+        self._save_to_postgresql(documents_to_db)
 
         
 
+def test():
+    hashs = [
+        "ef030fa04d4430446185035eeba4a968055c0a2dd833b4d4d23b99db2cc4729a",
+        "e8470235e9b3000fb53184443ec449d3010756587e935cccf1203332247cf94f"
+    ]
+    krsdf = KRSDokumentyFinansowe("0000057814")
+    # print(krsdf.get_document_list())
+    krsdf.download_document(hashs)
 
 
+
+test()
