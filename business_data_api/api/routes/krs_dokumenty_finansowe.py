@@ -3,7 +3,10 @@ from fastapi.requests import Request
 from typing import Literal, List
 from urllib.parse import urlencode
 from rq.job import Job
+from rq.exceptions import NoSuchJobError
 from sqlalchemy import select
+from dotenv import load_dotenv
+import os
 import uuid
 
 from business_data_api.utils.dict_response_template import compile_message
@@ -13,6 +16,7 @@ from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import (KRSDokum
 from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus, RedisScrapingRegistry
 
 router = APIRouter()
+load_dotenv()
 
 @router.get("/health", summary="API KRS-DF health check")
 async def health():
@@ -84,22 +88,70 @@ async def get_documents(
     hash_ids = hash_ids
     
     psqlsession = request.app.state.psqlsession()
-    with psqlsession.begin()
-        hash_ids_to_scrape = []
+    redis_conn = request.app.state.redis
+    async with psqlsession.begin():
+        for hash_id in hash_ids:
+            await psqlsession.execute(
+                text("SELECT pg_advisory_xact_lock(:hash_id);"),
+                {"hash_id":hash_id}
+            )
+        new_hash_ids_to_scrape = []
+        previous_hash_ids_to_scrape_again= []
         existing_records = (
-            psql_session.query(RedisScrapingRegistry)
+            psql_asession.query(RedisScrapingRegistry)
             .filter(RedisScrapingRegistry.in_(hash_ids))
             .with_for_update()
             .all()
         )
-        existing_records = [record.hash_id: record for record in existing_records]
+        existing_records = {record.hash_id: record for record in existing_records}
         for hash_id in hash_ids:
             record = existing_records.get(hash_id)
             if record:
-                pass
+                if record.job_status == ScrapingStatus.FAILED:
+                    # If the job has failed
+                    # Try to fetch the job to see if it still running (migh be bugged or frozen)
+                    job_id = record.job_id
+                    try:
+                        job = Job.fetch(job_id, connection=redis_conn)
+                        job.cancel()
+                    except NoSuchJobError:
+                        pass
+                    # Add the record to dictionary of hashes that have to be scraped again
+                    previous_hash_ids_to_scrape_again.append(record.hash_id)
+                elif record.job_status == ScrapingStatus.PENDING:
+                    # Check if job is still alive, if not it means it is stale
+                    job_id = record.job_id
+                    try:
+                        job = Job.fetch(job_id, connection=redis_conn)
+                        if job.started_at:
+                            max_worker_work_time_duration = os.getenv("MAX_WORKER_JOB_DURATION_SECONDS")
+                            time_elapsed = (datetime.now() - job.started_at).total_seconds()
+                            # If the worker work time exceeds the time provided as env variable, it should be killed 
+                            # And rerun
+                            if time_elapsed > max_worker_work_time_duration:
+                                job.cancel()
+                                previous_hash_ids_to_scrape_again.append(record.hash_id)
+                    except NoSuchJobError:
+                        # Job is stale
+                        # Add the record to dictionary of hashes that have to be scraped again
+                        previous_hash_ids_to_scrape_again.append(record.hash_id)
+                elif record.job_status == ScrapingStatus.FINISHED:
+                    # To nothing - record is already scraped
+                    pass
+                else:
+                    # Unknown status - error
+                    raise Exception()
             else:
-                # New records not in DB - scrape them (while checking if they were not added
-                # during the transaction, since Read Commited is default psql behaviour)
+                new_hash_ids_to_scrape.append(record.hash_id)
+
+        max_worker_task_batch_size = os.getenv("SCRAPE_BATCH_SIZE")
+        all_hash_ids_to_scrape = new_hash_ids_to_scrape.extend(previous_hash_ids_to_scrape_again)
+        job_batches = [hash_ids[i:i+max_worker_task_batch_size] for i in range(0, len(all_hash_ids_to_scrape), max_worker_task_batch_size)]
+        for job_batch in job_batches:
+            update_hash_ids = []
+            insert_hash_ids = []
+
+            
 
     
 

@@ -8,7 +8,8 @@ from sqlalchemy import text
 from business_data_api.utils.logger import setup_logger
 from business_data_api.api.routes.krs_api import router as krs_api_router
 from business_data_api.api.routes.krs_dokumenty_finansowe import router as krs_df_router
-from business_data_api.db import psql_session
+# from business_data_api.db import psql_session
+from business_data_api.db import psql_asession
 
 def create_app(testing:bool = False) -> FastAPI:
     api_log = setup_logger(name="api_log")
@@ -28,9 +29,9 @@ def create_app(testing:bool = False) -> FastAPI:
         "KRSDF": Queue("KRSDF", connection=app.state.redis)
     }
     api_log.info("Setting up PostgreSQL connection...")
-    app.state.psql_session = psql_session()
+    app.state.psql_asession = psql_asession()
     api_log.info("Testing PostgreSQL connection")
-    app.state.psql_session.execute(text("SELECT 1"))
+    app.state.psql_asession.execute(text("SELECT 1"))
 
     api_log.debug("Registering API blueprints...")
     app.include_router(krs_api_router, prefix="/krs-api")

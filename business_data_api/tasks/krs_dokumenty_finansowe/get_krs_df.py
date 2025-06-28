@@ -15,7 +15,8 @@ from business_data_api.tasks.exceptions import (
                                             InvalidParameterException,
                                             ScrapingFunctionFailed,
                                             WebpageThrottlingException)
-from business_data_api.db import psql_session
+# from business_data_api.db import psql_session
+from business_data_api.db import psql_asession
 from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus
 
 
