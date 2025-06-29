@@ -439,8 +439,6 @@ class KRSDokumentyFinansowe():
             'document_status':row['document_status'],
             'document_content_save_name':document_save_name,
             'document_content':document_data,
-            'scraping_status':ScrapingStatus.FINISHED,
-            'scraping_error_message':'',
             "document_content_file_extension":file_extension
             }
         return record
