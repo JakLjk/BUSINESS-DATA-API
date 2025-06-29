@@ -85,6 +85,27 @@ async def get_documents(
                     max_length=10),
     hash_ids: List[str] = Query(...)
 ):
+
+
+
+@router.get("/document-status")
+async def document_status(
+    request: Request,
+    krs: str = Query(..., 
+                    min_length=10,
+                    max_length=10),
+    hash_ids: List[str] = Query(...)
+):
+
+
+@router.get("/xget-documents", summary="Get specified documents for KRS")
+async def xget_documents(
+    request: Request,
+    krs: str = Query(..., 
+                    min_length=10,
+                    max_length=10),
+    hash_ids: List[str] = Query(...)
+):
     hash_ids = hash_ids
     
     psqlsession = request.app.state.psqlsession()

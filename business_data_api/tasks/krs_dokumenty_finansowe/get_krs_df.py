@@ -15,9 +15,6 @@ from business_data_api.tasks.exceptions import (
                                             InvalidParameterException,
                                             ScrapingFunctionFailed,
                                             WebpageThrottlingException)
-# from business_data_api.db import psql_session
-from business_data_api.db import psql_asession
-from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus
 
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
@@ -41,6 +38,8 @@ class KRSDokumentyFinansowe():
         }
         self.__krs_number: str = None 
         self.krs_number = krs_number
+
+        self._download_documents_state = {}
 
     @property
     def krs_number(self):
@@ -282,36 +281,36 @@ class KRSDokumentyFinansowe():
                                             "\nBigger intervals between requests may be necessary"
                                             )
 
-    def _save_to_postgresql(self ,documents_to_db: List):
-        session = psql_session()
-        for document in documents_to_db:
-            try: 
-                record = ScrapedKrsDF(**document)
-                session.merge(record)
-                session.commit()
-            except Exception as e:
-                session.close()
-                raise e
-        session.close()
+    # def _save_to_postgresql(self ,documents_to_db: List):
+    #     session = psql_session()
+    #     for document in documents_to_db:
+    #         try: 
+    #             record = ScrapedKrsDF(**document)
+    #             session.merge(record)
+    #             session.commit()
+    #         except Exception as e:
+    #             session.close()
+    #             raise e
+    #     session.close()
                 
-    def _save_to_file(self, 
-        filename:str, 
-        type:Literal['text', 'binary'],
-        content,
-        path:str = "",
-        ):
-        if path and not os.path.exists(path):
-            os.makedirs(path)
-        full_path = os.path.join(path, filename)
-        mode = 'w' if type=='text' else 'wb'
-        with open(full_path, mode) as f:
-            if type == 'text':
-                f.write(content)
-            else:
-                if isinstance(content, str):
-                    f.write(content.encode('utf-8'))
-                else:
-                    f.write(content)
+    # def _save_to_file(self, 
+    #     filename:str, 
+    #     type:Literal['text', 'binary'],
+    #     content,
+    #     path:str = "",
+    #     ):
+    #     if path and not os.path.exists(path):
+    #         os.makedirs(path)
+    #     full_path = os.path.join(path, filename)
+    #     mode = 'w' if type=='text' else 'wb'
+    #     with open(full_path, mode) as f:
+    #         if type == 'text':
+    #             f.write(content)
+    #         else:
+    #             if isinstance(content, str):
+    #                 f.write(content.encode('utf-8'))
+    #             else:
+    #                 f.write(content)
 
     def get_document_list(self):
         response = self._request_main_page()
@@ -322,58 +321,126 @@ class KRSDokumentyFinansowe():
             table_data.extend(self._extract_documents_table_data(response))
         return table_data
 
-    def download_document(self, document_hash_id_s: str | List):
+    # def download_document(self, document_hash_id_s: str | List):
+    #     if isinstance(document_hash_id_s, str):
+    #         document_hash_id_s = [document_hash_id_s]
+    #     response = self._request_main_page()
+    #     num_pages = self._extract_number_of_pages(response)
+    #     documents_to_db = []
+    #     # Scan pages in order to find documents that were marked to download
+    #     for n_page in range(1, num_pages + 1):
+    #         response = self._request_page(n_page, response)
+    #         table = self._extract_documents_table_data(response)
+    #         # Create list with hash ids of docuemnts that exist on current page
+    #         matched_documents = [row for row in table if row['document_hash_id'] in document_hash_id_s]
+    #         # Download each matched document
+    #         for document in matched_documents:
+    #             internal_id = document['internal_element_id']
+    #             hash_id = document['document_hash_id']
+    #             request_document_details = self._request_document_details(
+    #                                                                 response, 
+    #                                                                 internal_id)
+    #             pokaz_tresc_dokumentu_id = self._extract_pokaz_tresc_dokumentu_id(
+    #                                                                 request_document_details)
+    #             document_save_name, document_data = self._request_pokaz_tresc_dokumentu(
+    #                                                                 request_document_details, 
+    #                                                                 pokaz_tresc_dokumentu_id)
+    #             file_extension = document_save_name.split('.')[-1]
+    #             document_data = document_data.encode('utf-8')
+
+
+    #             record = {
+    #                 'hash_id':hash_id,
+    #                 'krs_number':self.krs_number,
+    #                 'document_internal_id':document['internal_element_id'],
+    #                 'document_type':document['document_type'],
+    #                 'document_name':document['document_name'],
+    #                 'document_date_from':document['document_from'],
+    #                 'document_date_to':document['document_to'],
+    #                 'document_status':document['document_status'],
+    #                 'document_content_save_name':document_save_name,
+    #                 'document_content':document_data,
+    #                 'scraping_status':ScrapingStatus.FINISHED,
+    #                 'scraping_error_message':'',
+    #                 "document_content_file_extension":file_extension
+    #                 }
+    #             documents_to_db.append(record)
+    #     self._save_to_postgresql(documents_to_db)
+
+    def download_documents(self, document_hash_id_s: str | List):
         if isinstance(document_hash_id_s, str):
             document_hash_id_s = [document_hash_id_s]
-        response = self._request_main_page()
-        num_pages = self._extract_number_of_pages(response)
-        documents_to_db = []
-        # Scan pages in order to find documents that were marked to download
-        for n_page in range(1, num_pages + 1):
-            response = self._request_page(n_page, response)
-            table = self._extract_documents_table_data(response)
-            # Create list with hash ids of docuemnts that exist on current page
-            matched_documents = [row for row in table if row['document_hash_id'] in document_hash_id_s]
-            # Download each matched document
-            for document in matched_documents:
-                internal_id = document['internal_element_id']
-                hash_id = document['document_hash_id']
-                request_document_details = self._request_document_details(
-                                                                    response, 
-                                                                    internal_id)
-                pokaz_tresc_dokumentu_id = self._extract_pokaz_tresc_dokumentu_id(
-                                                                    request_document_details)
-                document_save_name, document_data = self._request_pokaz_tresc_dokumentu(
-                                                                    request_document_details, 
-                                                                    pokaz_tresc_dokumentu_id)
-                file_extension = document_save_name.split('.')[-1]
-                document_data = document_data.encode('utf-8')
+
+        self._download_documents_state = {
+            "hash_ids":set(document_hash_id_s),
+            "matched_documents":[],
+            "current_index":0,
+            "num_pages":0,
+            "current_page_num":0,
+            "response":self._request_main_page()
+        }
+
+        self._download_documents_state["num_pages"] = (self._extract_number_of_pages(
+                                                        self._download_documents_state["response"]))
+        self._download_documents_load_next_page()
+
+    def _download_documents_load_next_page(self):
+        state = self._download_documents_state
+        state["current_page_num"] += 1
+        state["response"] = self._request_page(state["current_page_num"], 
+                                                state["response"])
+        table = self._extract_documents_table_data(state["response"])
+        state["matched_documents"] = [row for row in table if row['document_hash_id'] in state["hash_ids"]]
+        state["current_index"] = 0
+
+    def download_documents_next_id(self) -> str | None:
+        state = self._download_documents_state
+        while True:
+            if state["current_index"] < len(state["matched_documents"]):
+                row = state["matched_documents"][state["current_index"]]
+                return row["document_hash_id"]
+            else:
+                if state["current_page_num"] >= state["num_pages"]:
+                    return None
+                else:
+                    self._download_documents_load_next_page()
+
+    def download_documents_skip_id(self):
+        state = self._download_documents_state
+        state["current_index"] += 1
+
+    def download_documents_scrape_id(self):
+        state = self._download_documents_state
+        row = state["matched_documents"][state["current_index"]]
+        state["current_index"] += 1
+
+        internal_id = row['internal_element_id']
+        hash_id = row['document_hash_id']
+        request_document_details = self._request_document_details(
+                                                            state["response"], 
+                                                            internal_id)
+        pokaz_tresc_dokumentu_id = self._extract_pokaz_tresc_dokumentu_id(
+                                                            request_document_details)
+        document_save_name, document_data = self._request_pokaz_tresc_dokumentu(
+                                                            request_document_details, 
+                                                            pokaz_tresc_dokumentu_id)
+        file_extension = document_save_name.split('.')[-1]
+        document_data = document_data.encode('utf-8')
 
 
-                record = {
-                    'hash_id':hash_id,
-                    'krs_number':self.krs_number,
-                    'document_internal_id':document['internal_element_id'],
-                    'document_type':document['document_type'],
-                    'document_name':document['document_name'],
-                    'document_date_from':document['document_from'],
-                    'document_date_to':document['document_to'],
-                    'document_status':document['document_status'],
-                    'document_content_save_name':document_save_name,
-                    'document_content':document_data,
-                    'scraping_status':ScrapingStatus.FINISHED,
-                    'scraping_error_message':'',
-                    "document_content_file_extension":file_extension
-                    }
-                documents_to_db.append(record)
-        self._save_to_postgresql(documents_to_db)
-
-
-def task_get_document_list(krs:str):
-    krsdf = KRSDokumentyFinansowe(krs)
-    return krsdf.get_document_list()
-
-def task_get_documents_contents(krs:str,
-                                hash_ids: List):
-    krsdf = KRSDokumentyFinansowe(krs)
-    return krsdf.get_documents(hash_ids)
+        record = {
+            'hash_id':hash_id,
+            'krs_number':self.krs_number,
+            'document_internal_id':row['internal_element_id'],
+            'document_type':row['document_type'],
+            'document_name':row['document_name'],
+            'document_date_from':row['document_from'],
+            'document_date_to':row['document_to'],
+            'document_status':row['document_status'],
+            'document_content_save_name':document_save_name,
+            'document_content':document_data,
+            'scraping_status':ScrapingStatus.FINISHED,
+            'scraping_error_message':'',
+            "document_content_file_extension":file_extension
+            }
+        return record
