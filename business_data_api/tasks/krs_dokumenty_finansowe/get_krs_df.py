@@ -154,7 +154,7 @@ class KRSDokumentyFinansowe():
             filename = match.group(1)
             self._check_file_name_error(filename)
             self._check_cannot_display_page(response)
-            return filename, response.text
+            return filename, response.content
 
     def _extract_current_viewstate(self, response: requests.Response) -> str:
         response_text = response.text
@@ -425,7 +425,7 @@ class KRSDokumentyFinansowe():
                                                             request_document_details, 
                                                             pokaz_tresc_dokumentu_id)
         file_extension = document_save_name.split('.')[-1]
-        document_data = document_data.encode('utf-8')
+        # document_data = document_data.encode('utf-8')
 
 
         record = {

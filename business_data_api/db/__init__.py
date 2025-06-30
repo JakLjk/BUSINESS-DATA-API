@@ -12,8 +12,13 @@ sync_postgresql_url = os.getenv("SYNC_POSTGRE_URL")
 syncengine = create_engine(sync_postgresql_url)
 psql_syncsession = sessionmaker(bind=syncengine)
 
-aengine = create_async_engine(postgresql_url)
-psql_asession = sessionmaker(bind=aengine,
+aengine = create_async_engine(
+                            postgresql_url, 
+                            echo=False
+                            )
+psql_asession = sessionmaker(
+                            bind=aengine,
                             class_=AsyncSession,
-                            expire_on_commit=True)
+                            expire_on_commit=False
+                            )
 Base = declarative_base()

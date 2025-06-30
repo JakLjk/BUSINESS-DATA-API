@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.requests import Request
+from fastapi import Request, Body
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import Literal, List
 from urllib.parse import urlencode
 from rq.job import Job
@@ -10,9 +11,9 @@ import os
 import uuid
 
 from business_data_api.utils.dict_response_template import compile_message
-from business_data_api.worker.tasks.task_scrape_krsdf_document_list import task_get_document_list
-from business_data_api.worker.tasks.task_scrape_krsdf_documents import task_scrape_krsdf_documents
-from business_data_api.db.models import RedisScrapingRegistry
+from business_data_api.workers.tasks.task_scrape_krsdf_document_list import task_get_document_list
+from business_data_api.workers.tasks.task_scrape_krsdf_documents import task_scrape_krsdf_documents
+from business_data_api.db.models import RedisScrapingRegistry, ScrapedKrsDF
 
 router = APIRouter()
 load_dotenv()
@@ -75,50 +76,51 @@ async def get_document_names_result(
             "Job status is unknown"
         )
 
-@router.post("/get-download-documents", summary="Get specified documents for KRS")
-async def get_documents(
-    request: Request,
-    krs: str = Query(..., 
-                    min_length=10,
-                    max_length=10),
-    hash_ids: List[str] = Query(...)
-):
-    pass
-@router.get("/get-download-document-status")
-async def document_status(
-    request: Request,
-    krs: str = Query(..., 
-                    min_length=10,
-                    max_length=10),
-    hash_ids: List[str] = Query(...)
-    ):
-    pass
-
 @router.post("/scrape-documents")
 async def scrape_documents(
     request: Request,
+    krs: str = Query(..., 
+                min_length=10,
+                max_length=10),
     hash_ids:List[str] = Body(...)
     ):
     queue = request.app.state.queues["KRSDF"]
     job_id = str(uuid.uuid4())
     job = queue.enqueue(task_scrape_krsdf_documents, job_id, krs, hash_ids, job_id=job_id)
+    return "Job enqueued"
 
 @router.post("/download-documents")
-async def download_documents():
-    pass
+async def download_documents(
+    request: Request,
+    hash_ids: List[str] = Body(...)
+    ):
+    async with request.app.state.psql_asession() as session:
+        query = select(ScrapedKrsDF).where(ScrapedKrsDF.hash_id.in_(hash_ids))
+        results = await session.execute(query)
+        rows = results.scalars().all()
+    import io
+    import zipfile
+    zip_stream = io.BytesIO()
+    with zipfile.ZipFile(zip_stream, "w", zipfile.ZIP_DEFLATED) as zipfile:
+        for row in rows:
+            zipfile.writestr(row.document_content_save_name, row.document_content)
+    zip_stream.seek(0)
+    return StreamingResponse(
+        zip_stream,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=documents.zip"}
+    )
 
 @router.post("/documents-scraping-status")
 async def documents_scraping_status(
     request: Request,
     hash_ids:List[str] = Body(...)
     ):
-    session = request.app.state.psql_asession()
-    results = (
-            session.query(RedisScrapingRegistry)
-            .filter(RedisScrapingRegistry.hash_id.in_(hash_ids))
-            .all()
-            )
-    return {result.hash_id : result.job_status for result in results}
+    async with request.app.state.psql_asession() as session:
+        query = select(RedisScrapingRegistry).where(RedisScrapingRegistry.hash_id.in_(hash_ids))
+        results = await session.execute(query)
+        rows = results.scalars().all()
+    return {result.hash_id : result.job_status for result in rows}
 
 
 

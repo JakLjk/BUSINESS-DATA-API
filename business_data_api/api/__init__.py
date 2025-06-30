@@ -28,9 +28,7 @@ def create_app(testing:bool = False) -> FastAPI:
         "KRSDF": Queue("KRSDF", connection=app.state.redis)
     }
     api_log.info("Setting up PostgreSQL connection...")
-    app.state.psql_asession = psql_asession()
-    api_log.info("Testing PostgreSQL connection")
-    app.state.psql_asession.execute(text("SELECT 1"))
+    app.state.psql_asession = psql_asession
 
     api_log.debug("Registering API blueprints...")
     app.include_router(krs_api_router, prefix="/krs-api")

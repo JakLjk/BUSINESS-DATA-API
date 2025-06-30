@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy import text
 from dotenv import load_dotenv
 from rq.job import Job
-from rq.exceptions import NoSuchJobError
+from rq.exceptions import NoSuchJobError, InvalidJobOperation
 from redis import Redis
 from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
 from business_data_api.db import psql_syncsession
@@ -60,6 +60,8 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
                         job.cancel()
                         logger.warning("Cancelled stale job for FAILED scraping job")
                     except NoSuchJobError:
+                        pass
+                    except InvalidJobOperation:
                         pass
                     try:
                         logger.debug(f"Scraping document {hash_id}")
