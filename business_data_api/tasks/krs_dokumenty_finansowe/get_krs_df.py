@@ -281,37 +281,6 @@ class KRSDokumentyFinansowe():
                                             "\nBigger intervals between requests may be necessary"
                                             )
 
-    # def _save_to_postgresql(self ,documents_to_db: List):
-    #     session = psql_session()
-    #     for document in documents_to_db:
-    #         try: 
-    #             record = ScrapedKrsDF(**document)
-    #             session.merge(record)
-    #             session.commit()
-    #         except Exception as e:
-    #             session.close()
-    #             raise e
-    #     session.close()
-                
-    # def _save_to_file(self, 
-    #     filename:str, 
-    #     type:Literal['text', 'binary'],
-    #     content,
-    #     path:str = "",
-    #     ):
-    #     if path and not os.path.exists(path):
-    #         os.makedirs(path)
-    #     full_path = os.path.join(path, filename)
-    #     mode = 'w' if type=='text' else 'wb'
-    #     with open(full_path, mode) as f:
-    #         if type == 'text':
-    #             f.write(content)
-    #         else:
-    #             if isinstance(content, str):
-    #                 f.write(content.encode('utf-8'))
-    #             else:
-    #                 f.write(content)
-
     def get_document_list(self):
         response = self._request_main_page()
         num_pages = self._extract_number_of_pages(response)
@@ -320,52 +289,6 @@ class KRSDokumentyFinansowe():
             response = self._request_page(n_page, response)
             table_data.extend(self._extract_documents_table_data(response))
         return table_data
-
-    # def download_document(self, document_hash_id_s: str | List):
-    #     if isinstance(document_hash_id_s, str):
-    #         document_hash_id_s = [document_hash_id_s]
-    #     response = self._request_main_page()
-    #     num_pages = self._extract_number_of_pages(response)
-    #     documents_to_db = []
-    #     # Scan pages in order to find documents that were marked to download
-    #     for n_page in range(1, num_pages + 1):
-    #         response = self._request_page(n_page, response)
-    #         table = self._extract_documents_table_data(response)
-    #         # Create list with hash ids of docuemnts that exist on current page
-    #         matched_documents = [row for row in table if row['document_hash_id'] in document_hash_id_s]
-    #         # Download each matched document
-    #         for document in matched_documents:
-    #             internal_id = document['internal_element_id']
-    #             hash_id = document['document_hash_id']
-    #             request_document_details = self._request_document_details(
-    #                                                                 response, 
-    #                                                                 internal_id)
-    #             pokaz_tresc_dokumentu_id = self._extract_pokaz_tresc_dokumentu_id(
-    #                                                                 request_document_details)
-    #             document_save_name, document_data = self._request_pokaz_tresc_dokumentu(
-    #                                                                 request_document_details, 
-    #                                                                 pokaz_tresc_dokumentu_id)
-    #             file_extension = document_save_name.split('.')[-1]
-    #             document_data = document_data.encode('utf-8')
-
-
-    #             record = {
-    #                 'hash_id':hash_id,
-    #                 'krs_number':self.krs_number,
-    #                 'document_internal_id':document['internal_element_id'],
-    #                 'document_type':document['document_type'],
-    #                 'document_name':document['document_name'],
-    #                 'document_date_from':document['document_from'],
-    #                 'document_date_to':document['document_to'],
-    #                 'document_status':document['document_status'],
-    #                 'document_content_save_name':document_save_name,
-    #                 'document_content':document_data,
-    #                 'scraping_status':ScrapingStatus.FINISHED,
-    #                 'scraping_error_message':'',
-    #                 "document_content_file_extension":file_extension
-    #                 }
-    #             documents_to_db.append(record)
-    #     self._save_to_postgresql(documents_to_db)
 
     def download_documents(self, document_hash_id_s: str | List):
         if isinstance(document_hash_id_s, str):
@@ -425,8 +348,6 @@ class KRSDokumentyFinansowe():
                                                             request_document_details, 
                                                             pokaz_tresc_dokumentu_id)
         file_extension = document_save_name.split('.')[-1]
-        # document_data = document_data.encode('utf-8')
-
 
         record = {
             'hash_id':hash_id,

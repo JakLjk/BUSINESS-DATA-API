@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.requests import Request
 from typing import Literal
 
-from business_data_api.utils.dict_response_template import compile_message
+from business_data_api.utils.dict_response_template import compile_message, MessageStatus
 from business_data_api.tasks.krs_api.get_krs_api import KRSApi
 from business_data_api.tasks.exceptions import InvalidParameterException, EntityNotFoundException
 
@@ -25,6 +25,7 @@ async def get_odpis(
     try:
         fetched_extract = KRSApi().get_odpis(krs, rejestr, typ_odpisu)
         return compile_message(
+            MessageStatus.FINISHED,
             "KRS Extract Retrieved",
             "The requested KRS extract has been successfully retrieved.",
             fetched_extract,
@@ -50,6 +51,7 @@ async def get_hisoria_zmian(
             godzina_do
         )
         return compile_message(
+            MessageStatus.FINISHED,
             "History of Changes Retrieved",
             "The requested history of changes has been successfully retrieved.",
             fetched_changes_history)
