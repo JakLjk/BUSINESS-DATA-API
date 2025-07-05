@@ -5,8 +5,9 @@ from dotenv import load_dotenv
 from rq.job import Job
 from rq.exceptions import NoSuchJobError, InvalidJobOperation
 from redis import Redis
+
 from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
-from business_data_api.db import psql_syncsession
+from business_data_api.db import psql_sync_session
 from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus, RedisScrapingRegistry
 from business_data_api.utils.logger import setup_logger
 

@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.requests import Request
 from typing import Literal
 
-from business_data_api.utils.dict_response_template import compile_message, MessageStatus
+from business_data_api.utils.response_templates.dict_response_template import compile_message, MessageStatus
 from business_data_api.tasks.krs_api.get_krs_api import KRSApi
 from business_data_api.tasks.exceptions import InvalidParameterException, EntityNotFoundException
+
+
 
 
 router = APIRouter()

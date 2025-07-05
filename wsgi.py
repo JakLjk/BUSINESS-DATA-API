@@ -4,7 +4,3 @@ app = create_app()
 
 
 
-# TODO - docker integration
-
-
-
