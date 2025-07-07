@@ -1,6 +1,6 @@
 import os
 import uuid
-import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import create_engine, Column, String, Integer, DateTime
@@ -14,7 +14,7 @@ class BusinessDataApiLogs(Base):
     __tablename__="business_data_api_logs"
     id = Column(Integer, primary_key=True)
     logger_session_id = Column(String)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow())
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     level = Column(String)
     logger_name = Column(String)
     message = Column(String)
@@ -40,7 +40,7 @@ class PostgreSQLHandler(Handler):
         # creating record with log data
         log_entry = BusinessDataApiLogs(
             logger_session_id=self.logger_id,
-            timestamp=datetime.datetime.fromtimestamp(record.created),
+            timestamp=datetime.fromtimestamp(record.created),
             level = record.levelname,
             logger_name = record.name,
             message = record.getMessage()

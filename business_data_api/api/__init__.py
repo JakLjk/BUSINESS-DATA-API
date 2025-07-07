@@ -9,7 +9,7 @@ from sqlalchemy import text
 from business_data_api.utils.logger import setup_logger
 from business_data_api.api.routes.krs_api import router as krs_api_router
 from business_data_api.api.routes.krs_dokumenty_finansowe import router as krs_df_router
-from business_data_api.db import psql_async_session
+from business_data_api.db import create_async_sessionmaker
 
 def create_app(testing:bool = False) -> FastAPI:
     """ 
@@ -20,12 +20,14 @@ def create_app(testing:bool = False) -> FastAPI:
     redis_url = os.getenv("REDIS_URL")
     log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
     psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
+    psql_async_url = os.getenv("ASYNC_POSTGRESQL_URL")
 
     api_log = setup_logger(
         logger_name="fast_api_main",
         log_to_db=log_to_psql,
         log_to_db_url=psql_log_url
         )
+    # FIXME currently not working
     uvicorn_log = setup_logger(
         logger_name="uvicorn.access",
         log_to_db=log_to_psql,
@@ -50,7 +52,7 @@ def create_app(testing:bool = False) -> FastAPI:
         "KRSDF": Queue("KRSDF", connection=app.state.redis)
     }
     api_log.debug("Setting up PostgreSQL async session")
-    app.state.psql_async_session = psql_async_session
+    app.state.psql_async_session = create_async_sessionmaker(psql_async_url)
 
     api_log.debug("Registering API blueprints")
     app.include_router(krs_api_router, prefix="/krs-api")

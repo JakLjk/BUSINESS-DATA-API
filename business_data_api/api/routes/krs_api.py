@@ -4,7 +4,7 @@ from fastapi.requests import Request
 from typing import Literal
 from dotenv import load_dotenv
 
-from business_data_api.utils.response_templates.default_response import APIResponse
+from business_data_api.utils.response_templates.default_response import APIResponse, ResponseStatus
 from business_data_api.tasks.krs_api.get_krs_api import KRSApi
 from business_data_api.tasks.exceptions import InvalidParameterException, EntityNotFoundException
 from business_data_api.utils.logger import setup_logger
@@ -46,7 +46,7 @@ async def health(
         "In form of raw json response fetched from KRS API"
     ),
     response_model=APIResponse)
-async def getextract(
+async def get_extract(
     request: Request,
     krs: str = Query(..., 
                     min_length=10,
@@ -54,13 +54,13 @@ async def getextract(
     registry: Literal["P", "S"] = Query("P"),
     extract_type: Literal["aktualny", "pelny"] = Query("aktualny")
     ):
-    log_api_krsapi.info(f"Requested site: {response.url}")
+    log_api_krsapi.info(f"Requested site: {request.url}")
     log_api_krsapi.debug(
         f"\nFetching extract [type-{extract_type}] information"
-        f"\nfor [{rejestr}] {krs} from KRS API")
+        f"\nfor [{registry}] {krs} from KRS API")
     try:
         fetched_extract = KRSApi().get_odpis(krs, registry, extract_type)
-        log_api_krsapi.debug(f"Returning current extract for [{rejestr}] {krs}")
+        log_api_krsapi.debug(f"Returning current extract for [{registry}] {krs}")
         return APIResponse(
             status=ResponseStatus.SUCCESS,
             title="KRS extract retrieved",
@@ -98,9 +98,9 @@ async def getextract(
     response_model=APIResponse)
 async def get_history_of_changes(
     request: Request,
-    day: str = Query(..., regex=r"^\d{4}-\d{2}-\d{2}$"),
-    hour_from: str = Query(..., regex=r"^\d{2}$"),
-    hour_to: str = Query(..., regex=r"^\d{2}$")
+    day: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    hour_from: str = Query(..., pattern=r"^\d{2}$"),
+    hour_to: str = Query(..., pattern=r"^\d{2}$")
     ):
     log_api_krsapi.info(f"Requested site: {request.url}")
     log_api_krsapi.debug(

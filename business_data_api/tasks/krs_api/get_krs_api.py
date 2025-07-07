@@ -24,9 +24,9 @@ class KRSApi():
     def __init__(self):
         # Loading links to respective KRS API endpoints
         self._links = {
-            "odpis_aktualny":"https://api-krs.ms.gov.pl/api/krs/OdpisAktualny/{krs}?rejestr={rejestr}&format=json",
-            "odpis_pełny":"https://api-krs.ms.gov.pl/api/krs/OdpisPelny/{krs}?rejestr={rejestr}&format=json",
-            "historia_zmian":"https://api-krs.ms.gov.pl/api/Krs/Biuletyn/{dzien}?godzinaOd={godzinaOd}&godzinaDo={godzinaDo}"
+            "odpis_aktualny":"https://api-krs.ms.gov.pl/api/krs/OdpisAktualny/{krs}?rejestr={registry}&format=json",
+            "odpis_pełny":"https://api-krs.ms.gov.pl/api/krs/OdpisPelny/{krs}?rejestr={registry}&format=json",
+            "historia_zmian":"https://api-krs.ms.gov.pl/api/Krs/Biuletyn/{day}?godzinaOd={hour_fron}&godzinaDo={hour_to}"
         }
 
     def _check_parameter_krs(self, krs:str):
@@ -48,7 +48,7 @@ class KRSApi():
             raise InvalidParameterException("Register type must be a string.")
         if len(registry) != 1:
             raise InvalidParameterException("Register type must be a single character.")
-        if registrys not in ["P", "S"]:
+        if registry not in ["P", "S"]:
             raise InvalidParameterException("Register type must be 'P' for business or 'S' for associations.")
 
     def _check_parameter_dzien(self, day:str):
@@ -86,22 +86,22 @@ class KRSApi():
                             f"URL: {url}")
         return response
 
-    def _get_odpis_aktualny(self, krs:str, rejestr:str) -> dict:
+    def _get_odpis_aktualny(self, krs:str, registry:str) -> dict:
         """
         Retrieves the current extract for a given KRS number and register.
         """
         self._check_parameter_krs(krs)
-        self._check_parameter_rejestr(rejestr)
-        url = self._links["odpis_aktualny"].format(krs=krs, rejestr=rejestr)
+        self._check_parameter_rejestr(registry)
+        url = self._links["odpis_aktualny"].format(krs=krs, registry=registry)
         return self._make_request(url).json()
 
-    def _get_odpis_pelny(self, krs:str, rejestr:str) -> dict:
+    def _get_odpis_pelny(self, krs:str, registry:str) -> dict:
         """
         Retrieves the full extract for a given KRS number and register.
         """
         self._check_parameter_krs(krs)
-        self._check_parameter_rejestr(rejestr)
-        url = self._links["odpis_pełny"].format(krs=krs, rejestr=rejestr)
+        self._check_parameter_rejestr(registry)
+        url = self._links["odpis_pełny"].format(krs=krs, registry=registry)
         return self._make_request(url).json()
 
     def get_odpis(self, 
@@ -130,5 +130,5 @@ class KRSApi():
         self._check_parameter_godzina(hour_to)
         if int(hour_from) >= int(hour_to):
             raise ValueError("Start time must be earlier than end time.")
-        url = self._links["historia_zmian"].format(dzien=day, godzinaOd=hour_from, godzinaDo=hour_to)
+        url = self._links["historia_zmian"].format(day=day, hour_from=hour_from, hour_to=hour_to)
         return self._make_request(url).json()

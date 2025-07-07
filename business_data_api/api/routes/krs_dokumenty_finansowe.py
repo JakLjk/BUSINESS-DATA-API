@@ -13,7 +13,7 @@ from sqlalchemy import select
 from dotenv import load_dotenv
 
 
-from business_data_api.utils.response_templates.default_response import APIResponse
+from business_data_api.utils.response_templates.default_response import APIResponse, ResponseStatus
 from business_data_api.workers.tasks.task_scrape_krsdf_document_list import task_get_document_list
 from business_data_api.workers.tasks.task_scrape_krsdf_documents import task_scrape_krsdf_documents
 from business_data_api.db.models import RedisScrapingRegistry, ScrapedKrsDF

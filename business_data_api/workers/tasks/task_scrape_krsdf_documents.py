@@ -7,7 +7,7 @@ from rq.exceptions import NoSuchJobError, InvalidJobOperation
 from redis import Redis
 
 from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
-from business_data_api.db import psql_sync_session
+from business_data_api.db import create_sync_sessionmaker
 from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus, RedisScrapingRegistry
 from business_data_api.utils.logger import setup_logger
 
@@ -15,6 +15,7 @@ from business_data_api.utils.logger import setup_logger
 load_dotenv()
 log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
 psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
+psql_sync_url = os.getenv("SYNC_POSTGRE_URL")
 redis_url = os.getenv("REDIS_URL")
 
 def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
@@ -26,7 +27,7 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
     )
     log_scrape_documents.info("Task - fetching document data")
     log_scrape_documents.debug("Initialising PostgreSQL session")
-    session = psql_syncsession()
+    session = create_sync_sessionmaker(psql_sync_url)
     log_scrape_documents.debug("Initialising Redis session")
     redis_conn = Redis.from_url(redis_url)
 
