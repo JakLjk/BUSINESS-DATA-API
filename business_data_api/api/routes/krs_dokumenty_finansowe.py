@@ -62,7 +62,7 @@ async def get_document_names(
     job = queue.enqueue(task_get_document_list, krs, job_id=job_id)
     log_api_krsdf.debug(f"Scraping task was added to queue. id:{job_id}")
     return APIResponse(
-        status=MessageStatus.ENQUEUED,
+        status=ResponseStatus.ENQUEUED,
         title="Scraping task was added to queue",
         message=f"go to /get-document-names-result/{job_id} to see the results",
         data={"job_id":job_id}
