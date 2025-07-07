@@ -31,6 +31,7 @@ class ResponseStatus(str, Enum):
     PENDING = "pending"
     FAILED = "failed"
     UNKNOWN = "unknown"
+    ENQUEUED = "enqueued"
 
 class APIResponse(BaseModel):
     status: ResponseStatus
