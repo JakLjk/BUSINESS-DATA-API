@@ -16,7 +16,8 @@ from business_data_api.tasks.exceptions import (
                                             ScrapingFunctionFailed,
                                             WebpageThrottlingException)
 
-
+# Filter XMLParsedAsHTMLWarning, since current logic parses 
+# fragmets of XML that are embedded into HTML
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 
@@ -27,7 +28,10 @@ class KRSDokumentyFinansowe():
     KRS_DF_URL = "https://ekrs.ms.gov.pl/rdf/pd/search_df"
 
     def __init__(self, krs_number):
+        # Initialising requests session for handling future requests
+        # That invovle remembering cookies and other session parameters
         self._session = requests.Session()
+        # Setting up default ajaxx headers used in requests
         self._ajax_headers = {
             "Faces-Request": "partial/ajax",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -36,9 +40,12 @@ class KRSDokumentyFinansowe():
             "Referer": self.KRS_DF_URL,
             "Origin":"https://ekrs.ms.gov.pl"
         }
+        # Defining variables for krs property 
         self.__krs_number: str = None 
         self.krs_number = krs_number
 
+        # Holds infomrations about docuemnts that are
+        # available on currently loaded documents preview table 
         self._download_documents_state = {}
 
     @property
@@ -56,6 +63,9 @@ class KRSDokumentyFinansowe():
         self._krs_number = krs_number
 
     def _request_main_page(self) -> requests.Response:
+        """
+        Loads the main KRS portal page
+        """
         response = self._session.get(self.KRS_DF_URL)
         soup = BeautifulSoup(response.text, "html.parser")
         # fetching initial viewstate
@@ -77,9 +87,14 @@ class KRSDokumentyFinansowe():
         return response
  
     def _request_page(self, page_num:int, response: requests.Response) -> requests.Response:
+        """
+        Requests a specific page number containing table with documents
+        """
         viewstate = self._extract_current_viewstate(response)
         if page_num < 1:
             raise ValueError("Page number must be greater than or equal to 1.")
+        # This function actually returns page based on document index 
+        # like: return first 10 documents = return first page
         first_row = (page_num - 1) * 10
         payload = {
             'javax.faces.partial.ajax': 'true',
@@ -105,6 +120,11 @@ class KRSDokumentyFinansowe():
         return response
 
     def _request_document_details(self, response: requests.Response, details_id:str) -> dict:
+        """
+        When on document table list page, this function is responsible for 
+        'clicking' button that will activate function returning popup containing 
+        document information details
+        """
         viewstate = self._extract_current_viewstate(response)
         payload = {
             'javax.faces.partial.ajax': 'true',
@@ -127,6 +147,10 @@ class KRSDokumentyFinansowe():
     def _request_pokaz_tresc_dokumentu(self, 
                                         response: requests.Response, 
                                         id_pokaz_tresc_dokumentu: str) -> Tuple[str, requests.Response]:
+        """
+        Function that is used to press 'pokaz tresc dokumentu' button
+        In turn, clicking this button downloads the document
+        """
         viewstate = self._extract_current_viewstate(response)
         payload = {
             "javax.faces.partial.ajax": "true",
@@ -157,6 +181,10 @@ class KRSDokumentyFinansowe():
             return filename, response.content
 
     def _extract_current_viewstate(self, response: requests.Response) -> str:
+        """
+        Function that returns information about viewstate that is embedded into the
+        response. It is necessarry to use the current viewstate when sending next request
+        """
         response_text = response.text
         root = etree.fromstring(response_text.encode())
         viewstate_string = root.xpath('//update[@id="j_id1:javax.faces.ViewState:0"]')
@@ -165,6 +193,10 @@ class KRSDokumentyFinansowe():
         return viewstate_string[0].text.strip()
 
     def _extract_number_of_pages(self, response: requests.Response) -> int:
+        """
+        Function for extracting available number of pages with documents
+        for current KRS company
+        """
         response_text = response.text
         root = etree.fromstring(response_text.encode('utf-8'))
         search_form_update_element = root.xpath('.//update[@id="searchForm"]')[0].text
@@ -173,6 +205,9 @@ class KRSDokumentyFinansowe():
         return int(re.search(r'Strona: \s*\d+/(\d+)', num_of_pages_text).group(1))
 
     def _extract_documents_table_data(self, response: requests.Response) -> list:
+        """
+        Function that extracts document information from loaded table
+        """
         response_text = response.text
         root = etree.fromstring(response_text.encode('utf-8'))
         try:
@@ -217,6 +252,10 @@ class KRSDokumentyFinansowe():
         return table_rows
 
     def _extract_pokaz_tresc_dokumentu_id(self, response: requests.Response) -> str:
+        """
+        Function for extracting id of the button that is responsible for
+        downloading the document
+        """
         response_text = response.text
         root = etree.fromstring(response_text.encode('utf-8'))
         element_pokaz_tresc_dokumentu = root.xpath('.//update[@id="searchForm"]')[0].text
@@ -224,13 +263,24 @@ class KRSDokumentyFinansowe():
         return soup.find('a', string='Pokaż treść dokumentu')['id']
 
     def _helper_normalize_string(self, string:str) -> str:
+        """
+        Helper function that used for normalising string to a standard
+        """
         return unicodedata.normalize("NFKD", string).strip().lower().replace('\xa0', ' ')
 
     def _helper_hash_string(self, string:str) ->str:
+        """
+        Helper function that is used for hashing strings, so that
+        they can be used as optimised and unique document ID
+        """
         return hashlib.sha256(string.encode('UTF-8')).hexdigest()
 
     def _check_cannot_display_page(self, response: requests.Response) -> bool:
-        """Error can appear when stale viewstate was provided"""
+        """
+        Function that checks if the response that was returned contains elements
+        that would suggest that the site was not loaded correctly
+        Error can often appear when stale viewstate was provided
+        """
         response_text = response.text
         try:
             root = etree.fromstring(response_text.encode('utf-8'))
@@ -247,9 +297,11 @@ class KRSDokumentyFinansowe():
             )
 
     def _check_file_name_error(self, filename:str):
-        """File name = Error most probably means that the id provided
+        """
+        File name = Error most probably means that the id provided
         by '_extract_pokaz_tresc_dokumentu_id' is incorrect (due to scraping error 
-        or webpage structure change)"""
+        or webpage structure change)
+        """
         if 'error' in filename:
             raise ScrapingFunctionFailed(
             f"\nFile name = Error most probably means that the id provided"
@@ -258,6 +310,12 @@ class KRSDokumentyFinansowe():
             f"Filename: {filename}")
 
     def _check_exist_documents_for_krs(self, response: requests.Response) -> bool:
+        """
+        Function that checks if there are any documents available for
+        the KRS number provided
+        If not documents are available it means that such entity is not registered
+        on the KRS platform
+        """
         response_text = response.text
         try:
             root = etree.fromstring(response_text.encode('utf-8'))
@@ -269,6 +327,10 @@ class KRSDokumentyFinansowe():
             raise EntityNotFoundException("Server Error - No documents for specified KRS")
 
     def _check_webpage_throttling(self, response: requests.Response):
+        """
+        Function that check if the webpage is not throttling the user
+        due to issues like too many requests
+        """
         response_text = response.text
         try:
             root = etree.fromstring(response_text.encode('utf-8'))
@@ -281,7 +343,11 @@ class KRSDokumentyFinansowe():
                                             "\nBigger intervals between requests may be necessary"
                                             )
 
-    def get_document_list(self):
+    def get_document_list(self) -> List:
+        """
+        Main function responsible for getting document names list 
+        from the KRS webpage
+        """
         response = self._request_main_page()
         num_pages = self._extract_number_of_pages(response)
         table_data = []
@@ -291,6 +357,13 @@ class KRSDokumentyFinansowe():
         return table_data
 
     def download_documents(self, document_hash_id_s: str | List):
+        """
+        Function responsible for initialising document
+        scraping process.
+        It saves the information about requested hash ids and other
+        informations utilised by functions responsible for finding and scraping 
+        krs df documents
+        """
         if isinstance(document_hash_id_s, str):
             document_hash_id_s = [document_hash_id_s]
 
@@ -308,6 +381,10 @@ class KRSDokumentyFinansowe():
         self._download_documents_load_next_page()
 
     def _download_documents_load_next_page(self):
+        """
+        Function that loads next page with documents 
+        after all matching documents were found on the current page
+        """
         state = self._download_documents_state
         state["current_page_num"] += 1
         state["response"] = self._request_page(state["current_page_num"], 
@@ -317,6 +394,9 @@ class KRSDokumentyFinansowe():
         state["current_index"] = 0
 
     def download_documents_next_id(self) -> str | None:
+        """
+        Functon that fetches next hash id that is supposed to be scraped
+        """
         state = self._download_documents_state
         while True:
             if state["current_index"] < len(state["matched_documents"]):
@@ -329,10 +409,17 @@ class KRSDokumentyFinansowe():
                     self._download_documents_load_next_page()
 
     def download_documents_skip_id(self):
+        """
+        Function that skips the id in order not to scrape it
+        """
         state = self._download_documents_state
         state["current_index"] += 1
 
-    def download_documents_scrape_id(self):
+    def download_documents_scrape_id(self)->dict:
+        """
+        Function responsible for physically scraping the document
+        data from the webpage
+        """
         state = self._download_documents_state
         row = state["matched_documents"][state["current_index"]]
         state["current_index"] += 1
