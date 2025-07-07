@@ -62,7 +62,7 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
             if existing_record:
                 log_scrape_documents.info("Found existing record in the DB")
                 if existing_record.job_status == ScrapingStatus.FAILED:
-                    log_scrape_documents.("Found existing record with status FAILED - retrying scraping")
+                    log_scrape_documents.debug("Found existing record with status FAILED - retrying scraping")
                     previous_job_id = existing_record.job_id 
                     try:
                         log_scrape_documents.debug("Trying to close stale job with FAILED scraping status")

@@ -89,7 +89,7 @@ async def get_document_names_result(
     redis_conn = request.app.state.redis
     try:
         logging.debug(f"Fetching information from job id: {job_id}")
-        job = Job.fetch(job_id, connection=redis_conn)]
+        job = Job.fetch(job_id, connection=redis_conn)
     except NoSuchJobError as e:
         error_message = (
             f"\nUnable to find job  that is supposed to"
@@ -102,7 +102,7 @@ async def get_document_names_result(
             status_code=404,
             detail=error_message
         )
-    except InvalidJobOperation as e
+    except InvalidJobOperation as e:
         error_message = (
             f"\nUnable to find job  that is supposed to"
             f"\nhave information about document names."
@@ -142,7 +142,7 @@ async def get_document_names_result(
             f"\n id:{job_id}, \ne rror:{job.exc_info}")
         return APIResponse(
             status=ResponseStatus.FAILED,
-            title="Scraping job failed"
+            title="Scraping job failed",
             message="Job has failed during scraping process",
             data=job.exc_info
         )
@@ -180,7 +180,7 @@ async def scrape_documents(
     job_id = str(uuid.uuid4())
     log_api_krsdf.debug(f"Enqueuing job <task_scrape_krsdf_documents> id: {job_id}")
     job = queue.enqueue(task_scrape_krsdf_documents, job_id, krs, hash_ids, job_id=job_id)
-    log_api_krsdf.debug(f"Scraping task added to queue. id" {job_id})
+    log_api_krsdf.debug(f"Scraping task added to queue. id: {job_id}")
     return APIResponse(
         status=ResponseStatus.ENQUEUED,
         title="Scraping job for added to queue",
@@ -225,14 +225,16 @@ async def documents_scraping_status(
         "And packed into ZIP file and then send as Streaming Response"
         "IF documements are not available in db, they won't be downloaded"
     ),
-    response_model=StreamingResponse
+    response_model=None,
+    response_class=StreamingResponse
     )
 async def download_documents(
     request: Request,
     hash_ids: List[str] = Body(...)
     ):
     # TODO add logic for handling requests which request download documents that are 
-    # not in database
+    # not in database httpexception?
+
     log_api_krsdf.info(f"Requested site: {request.url}")
     log_api_krsdf.debug(f"Opening PostgreSQL DB session")
     async with request.app.state.psql_asession() as session:

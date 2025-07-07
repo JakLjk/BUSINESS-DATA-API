@@ -1,5 +1,7 @@
+import os
 import uuid
 import datetime
+from dotenv import load_dotenv
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from logging import Handler, LogRecord
@@ -10,8 +12,8 @@ Base = declarative_base()
 class BusinessDataApiLogs(Base):
     """ Table model for log data """
     __tablename__="business_data_api_logs"
-    id = Column(Integer, primary_key=True),
-    logger_session_id = Column(String),
+    id = Column(Integer, primary_key=True)
+    logger_session_id = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow())
     level = Column(String)
     logger_name = Column(String)
@@ -25,7 +27,7 @@ class PostgreSQLHandler(Handler):
             logger_id:Optional[str]=None
         ):
         super().__init__()
-        self.logger_id = if logger_id: logger_id else: str(uuid.uuid4())
+        self.logger_id = logger_id if logger_id else str(uuid.uuid4())
         # Declaring db engine
         self.engine = create_engine(postgresql_url)
         # Creaing Log table in DB if it does not yet exists
@@ -37,7 +39,7 @@ class PostgreSQLHandler(Handler):
         session = self.session()
         # creating record with log data
         log_entry = BusinessDataApiLogs(
-            logger_id=self.logger_id
+            logger_session_id=self.logger_id,
             timestamp=datetime.datetime.fromtimestamp(record.created),
             level = record.levelname,
             logger_name = record.name,

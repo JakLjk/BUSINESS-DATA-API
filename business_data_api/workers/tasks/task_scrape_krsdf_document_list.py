@@ -1,4 +1,5 @@
-from dotenv import load_dotenv()
+import os
+from dotenv import load_dotenv
 
 from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
 

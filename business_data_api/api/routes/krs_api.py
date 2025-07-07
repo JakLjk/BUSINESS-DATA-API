@@ -1,6 +1,8 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.requests import Request
 from typing import Literal
+from dotenv import load_dotenv
 
 from business_data_api.utils.response_templates.default_response import APIResponse
 from business_data_api.tasks.krs_api.get_krs_api import KRSApi
@@ -27,6 +29,9 @@ log_api_krsapi = setup_logger(
     "/health", 
     summary="API KRS health check",
     response_model=APIResponse)
+async def health(
+    request: Request
+    ):
     log_api_krsapi.info(f"Requested site: {request.url}")
     return APIResponse(
         status=ResponseStatus.SUCCESS,
