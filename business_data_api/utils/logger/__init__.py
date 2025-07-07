@@ -9,6 +9,8 @@ from .logging_postgresql_handler import PostgreSQLHandler
 
 def setup_logger(
                 logger_name:str,
+                # Logger id - for easier instance filtering
+                logger_id:Optional[str]=None,
                 stream_logging_level:int = logging.DEBUG,
                 # File logging variables
                 log_to_file:bool = False,
@@ -56,7 +58,7 @@ def setup_logger(
         file_handler.setFormatter(formatting)
         logger.addHandler(file_handler)
     if log_to_db:
-        psql_handler = PostgreSQLHandler(log_to_db_url)
+        psql_handler = PostgreSQLHandler(log_to_db_url, logger_id)
         psql_handler.setLevel(log_to_db_logging_level)
         logger.addHandler(psql_handler)
     return logger

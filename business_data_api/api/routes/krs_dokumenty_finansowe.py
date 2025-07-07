@@ -59,7 +59,7 @@ async def get_document_names(
     queue = request.app.state.queues["KRSDF"]
     job_id = str(uuid.uuid4())
     log_api_krsdf.debug(f"Enqueuing job <task_get_document_list> id:{job_id}")
-    job = queue.enqueue(task_get_document_list, krs, job_id=job_id)
+    job = queue.enqueue(task_get_document_list, job_id, krs, job_id=job_id)
     log_api_krsdf.debug(f"Scraping task was added to queue. id:{job_id}")
     return APIResponse(
         status=ResponseStatus.ENQUEUED,
@@ -173,6 +173,7 @@ async def scrape_documents(
                 max_length=10),
     hash_ids:List[str] = Body(...)
     ):
+    # TODO add logic that will insert record with pending status
     log_api_krsdf.info(f"Requested site: {request.url}")
     log_api_krsdf.debut(f"Scraping {len(hash_ids)} documents for krs {krs}")
     queue = request.app.state.queues["KRSDF"]
@@ -210,7 +211,7 @@ async def documents_scraping_status(
     documents = {result.hash_id : result.job_status for result in rows}
     log_api_krsdf.debug(f"Returning information about {len(documents)} records that are in DB")
     return APIResponse(
-        status=ResponseStatus.FINISHED,
+        status=ResponseStatus.SUCCESS,
         title="Document scraping statuses",
         message="Returning information about documen statuses that are recorded in DB",
         data=documents
