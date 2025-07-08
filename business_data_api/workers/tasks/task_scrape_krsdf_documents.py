@@ -1,6 +1,7 @@
 import os
 from typing import List
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
 from rq.job import Job
 from rq.exceptions import NoSuchJobError, InvalidJobOperation
@@ -8,8 +9,9 @@ from redis import Redis
 
 from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
 from business_data_api.db import create_sync_sessionmaker
-from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus, RedisScrapingRegistry
+from business_data_api.db.models import ScrapedKrsDF, ScrapingStatus, RedisScrapingRegistry, ScrapingCommissions
 from business_data_api.utils.logger import setup_logger
+from business_data_api.utils.redis_utils.redis_job_status import job_is_running
 
 
 load_dotenv()
@@ -17,6 +19,7 @@ log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
 psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
 psql_sync_url = os.getenv("SYNC_POSTGRE_URL")
 redis_url = os.getenv("REDIS_URL")
+stale_job_treshold_seconds = os.getenv()
 
 def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
     log_scrape_documents = setup_logger(
@@ -31,10 +34,6 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
     log_scrape_documents.debug("Initialising Redis session")
     redis_conn = Redis.from_url(redis_url)
 
-    # List of all hash ids found by the scraping function
-    # It is used to evaluate if all provided hash ids were found
-    found_hash_ids = []
-
     log_scrape_documents.debug("Initialising KRS Scraper object")
     krsdf = KRSDokumentyFinansowe(krs)
     log_scrape_documents.debug("Initialising download documents function")
@@ -43,39 +42,100 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
         log_scrape_documents.debug(f"Scraping document: {hash_id}")
         log_scrape_documents.debug("Beggining PSQL transaction")
         with session.begin():
-            # Lock and wait for the row if it is used by another process
-            log_scrape_documents.debug("Generating hash index for locking row in DB")
-            hash_bytes = bytes.fromhex(hash_id)
-            hash_id_int = int.from_bytes(hash_bytes[:8], byteorder='big', signed=False)
-            if hash_id_int > 0x7FFFFFFFFFFFFFFF:
-                hash_id_int -= 0x10000000000000000
-            log_scrape_documents.debug("Locking row in table")
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:hash_id);"),
-                {"hash_id":hash_id_int}
+            other_instances_of_hash_id = (
+                session.query(ScrapingCommissions)
+                .filter(
+                    ScrapingCommissions.hash_id == hash_id,
+                    ScrapingCommissions.job_id != job_id
+                )
+                .all()
             )
-            logger.log_scrape_documents("Searching for exisiting record in registry")
-            existing_record = (
-                session.query(RedisScrapingRegistry)
-                .filter(RedisScrapingRegistry.hash_id == hash_id)
+            current_record = (
+                session.query(ScrapingCommissions)
+                .filter(
+                    ScrapingCommissions.hash_id == hash_id,
+                    ScrapingCommissions.job_id != job_id
+                )
                 .first()
             )
-            if existing_record:
-                log_scrape_documents.info("Found existing record in the DB")
-                if existing_record.job_status == ScrapingStatus.FAILED:
-                    log_scrape_documents.debug("Found existing record with status FAILED - retrying scraping")
-                    previous_job_id = existing_record.job_id 
+            if other_instances_of_hash_id:
+                finished_jobs_for_hash_id = any(
+                    r.status == ScrapingStatus.FINISHED for r in other_instances_of_hash_id
+                )
+                pending_jobs_hash_ids = any(
+                    r.status == ScrapingStatus.PENDING for r in other_instances_of_hash_id
+                )
+                failed_jobs_hash_ids = any(
+                    r.status == ScrapingStatus.PENDING for r in other_instances_of_hash_id
+                )
+                if finished_jobs_for_hash_id:
+                    # TODO additional check if record is actually in the DB
+                    current_record.status=ScrapingStatus.FINISHED
+                    current_record.message="Record was already scraped"
+                    session.commit()
+                elif pending_jobs_hash_ids:
+                    pending_jobs_records = [r for r in other_instances_of_hash_id if r.status==ScrapingStatus.PENDING]
                     try:
-                        log_scrape_documents.debug("Trying to close stale job with FAILED scraping status")
-                        job = Job.fetch(previous_job_id, connection=redis_conn)
-                        job.cancel()
-                        logger.warning("Cancelled stale job for FAILED scraping job")
-                    except NoSuchJobError:
-                        log_scrape_documents.debug("No stale FAILED job found")
-                        pass
-                    except InvalidJobOperation:
-                        log_scrape_documents.debug("No stale FAILED job found")
-                        pass
+                        data = krsd.download_documents_scrape_id()
+                        scraped_data = ScrapedKrsDF(**data)
+                        session.flush()
+                    except IntegrityError:
+                        session.rollback()
+                        current_record.status=ScrapingStatus.FINISHED
+                        current_record.message=(
+                            "\nRecord was already inserted by another worker"
+                        )
+                        session.commit()
+                    except Exception as e:
+                        error_message = (
+                            f"\nError has occurred during scraping process"
+                            f"\nRe-scraping FAILED record failed"
+                            f"\nDocument could not be scraped. id: {hash_id}"
+                            f"\nMarking document scraping status as FAILED"
+                            f"\nError message: {str(e)}"
+                        )
+                        current_record.status=ScrapingStatus.FAILED
+                        current_record.message=error_message
+                        session.commit()
+
+                elif failed_jobs_hash_ids:
+                    try:
+                        data = krsd.download_documents_scrape_id()
+                    except Exception as e:
+                        error_message = (
+                            f"\nError has occurred during scraping process"
+                            f"\nRe-scraping FAILED record failed"
+                            f"\nDocument could not be scraped. id: {hash_id}"
+                            f"\nMarking document scraping status as FAILED"
+                            f"\nError message: {str(e)}"
+                        )
+                        current_record.status = ScrapingStatus.FAILED
+                        current_record.message = error_message
+                        session.commit()
+                    else:
+                        current_record.status=ScrapingStatus.FINISHED
+                        current_record.message="Succesfully re-scraped document"
+                        scraped_data = ScrapedKrsDF(**data)
+                        session.commit()
+                else:
+                    try:
+                        data = krsd.download_documents_scrape_id()
+                    except Exception as e:
+                        error_message = (
+                            f"\nError has occurred during scraping process"
+                            f"\nDocument could not be scraped. id: {hash_id}"
+                            f"\nMarking document scraping status as FAILED"
+                            f"\nError message: {str(e)}"
+                        )
+                        current_record.status = ScrapingStatus.FAILED
+                        current_record.message = error_message
+                        session.commit()
+                    else:
+                        current_record.status=ScrapingStatus.FINISHED
+                        current_record.message="Succesfully scraped document"
+                        scraped_data = ScrapedKrsDF(**data)
+                        session.commit()
+
                     try:
                         log_scrape_documents.debug(f"Scraping document {hash_id}")
                         data = krsdf.download_documents_scrape_id()
@@ -103,81 +163,23 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
                         session.merge(record_scraped_krsdf)
                         session.commit()
                         log_scrape_documents.debug(f"Committed FINISHED job update to DB")
-                elif existing_record.job_status == ScrapingStatus.PENDING:
-                    log_scrape_documents.debug("Found existing record with status PENDING - checking if job is stale")
-                    try:
-                        job = Job.fetch(previous_job_id, connection=redis_conn)
-                    except NoSuchJobError:
-                        log_scrape_documents.warning("Job with status PENDING has not been found")
-                        try:
-                            log_scrape_documents.debug(f"Scraping document {hash_id}")
-                            data = krsdf.download_documents_scrape_id()
-                        except Exception as e:
-                            error_message = (
-                                f"\nError has occurred during scraping process"
-                                f"\nDocument could not be scraped. id: {hash_id}"
-                                f"\nMarking document scraping status as FAILED"
-                                f"\nError message: {str(e)}"
-                            )
-                            log_scrape_documents.error(error_message)
-                            existing_record.job_id = job_id
-                            existing_record.job_status = ScrapingStatus.FAILED
-                            existing_record.scraping_error_message = str(e)
-                            session.commit()
-                            log_scrape_documents.debug(f"Committed FAILED job update to DB")
-                        else:
-                            log_scrape_documents.debug(f"Successfully scraped document {hash_id}")
-                            existing_record.job_id = job_id
-                            existing_record.job_status = ScrapingStatus.FINISHED
-                            existing_record.scraping_error_message = ""
-                            record_scraped_krsdf = ScrapedKrsDF(**data)
-                            session.merge(record_scraped_krsdf)
-                            session.commit()
-                            log_scrape_documents.debug(f"Committed FINISHED job update to DB")
-                elif existing_record.job_status == ScrapingStatus.FINISHED:
-                    log_scrape_documents.debug(
-                        f"\nDocument already has status FINISHED in DB"
-                        f"\nDocument has already been scraped {hash_id}"
-                        f"\nSkipping this document in scraping process"
-                        )
-                    krsdf.download_documents_skip_id()
-                else:
-                    error_message = (
-                        "Invalid value of ScrapingStatus in DB"
-                        "Most probably record was not saved correctly"
-                    )
-                    log_scrape_documents.error(error_message)
-                    raise ValueError(error_message)
+            # New hash_id that was not scraped before
             else:
-                log_scrape_documents.info(f"No existing record was found for document {hash_id}")
                 try:
-                    log_scrape_documents.debug(f"Scraping document {hash_id}")
-                    data = krsdf.download_documents_scrape_id()
+                    data = krsd.download_documents_scrape_id()
                 except Exception as e:
                     error_message = (
                         f"\nError has occurred during scraping process"
+                        f"\nRe-scraping FAILED record failed"
                         f"\nDocument could not be scraped. id: {hash_id}"
                         f"\nMarking document scraping status as FAILED"
                         f"\nError message: {str(e)}"
                     )
-                    log_scrape_documents.error(error_message)
-                    record_redis_registry = RedisScrapingRegistry(
-                        hash_id = hash_id,
-                        job_id = job_id,
-                        job_status = ScrapingStatus.FAILED,
-                        scraping_error_message = str(e))
-                    session.add(record_redis_registry)
+                    current_record.status = ScrapingStatus.FAILED
+                    current_record.message = error_message
                     session.commit()
-                    log_scrape_documents.debug(f"Committed FAILED job info to DB")
                 else:
-                    log_scrape_documents.debug(f"Successfully scraped document {hash_id}")
-                    record_scraped_krsdf = ScrapedKrsDF(**data)
-                    record_redis_registry = RedisScrapingRegistry(
-                        hash_id = hash_id,
-                        job_id = job_id,
-                        job_status = ScrapingStatus.FINISHED,
-                        scraping_error_message = "")
-                    session.add(record_scraped_krsdf)
-                    session.add(record_redis_registry)
+                    current_record.status=ScrapingStatus.FINISHED
+                    current_record.message="Succesfully re-scraped document"
+                    scraped_data = ScrapedKrsDF(**data)
                     session.commit()
-                    log_scrape_documents.debug(f"Committed FINISHED job info to DB")

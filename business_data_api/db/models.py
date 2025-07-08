@@ -37,4 +37,14 @@ class RedisScrapingRegistry(Base):
     scraping_error_message = Column(Text)
     record_created_at = Column(TIMESTAMP, server_default=func.now())
     record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-    # TODO - add column showing retires of record scraping
+
+class ScrapingCommissions:
+    id = Column(Integer, primary_key=True)
+    job_id = Column(String)
+    hash_id = Column(string)
+    job_status = Column(PSQLEnum(ScrapingStatus), 
+                            nullable=False,
+                            default=ScrapingStatus.PENDING)
+    message = Column(Text)
+    record_created_at = Column(TIMESTAMP, server_default=func.now())
+    record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now()) 

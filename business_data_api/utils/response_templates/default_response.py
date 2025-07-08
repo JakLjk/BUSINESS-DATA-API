@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union, List
 
 class ResponseStatus(str, Enum):
     SUCCESS = "finished"

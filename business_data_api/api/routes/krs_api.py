@@ -65,7 +65,7 @@ async def get_extract(
             status=ResponseStatus.SUCCESS,
             title="KRS extract retrieved",
             message="The requested KRS extract has been successfully retrieved.",
-            data=fetched_extract
+            data={"fetched_extract":fetched_extract}
         )
     except InvalidParameterException as e:
         error_message = (
@@ -118,7 +118,7 @@ async def get_history_of_changes(
             status=ResponseStatus.SUCCESS,
             title="History of Changes Retrieved",
             message="The requested history of changes has been successfully retrieved.",
-            data=fetched_changes_history
+            data={"fetched_changes_history":fetched_changes_history}
         )
     except InvalidParameterException as e:
         error_message = (

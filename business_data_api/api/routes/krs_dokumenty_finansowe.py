@@ -11,12 +11,13 @@ from rq.job import Job
 from rq.exceptions import NoSuchJobError, InvalidJobOperation
 from sqlalchemy import select
 from dotenv import load_dotenv
+from datetime import datetime
 
 
 from business_data_api.utils.response_templates.default_response import APIResponse, ResponseStatus
 from business_data_api.workers.tasks.task_scrape_krsdf_document_list import task_get_document_list
 from business_data_api.workers.tasks.task_scrape_krsdf_documents import task_scrape_krsdf_documents
-from business_data_api.db.models import RedisScrapingRegistry, ScrapedKrsDF
+from business_data_api.db.models import RedisScrapingRegistry, ScrapedKrsDF, ScrapingCommissions
 from business_data_api.utils.logger import setup_logger
 
 router = APIRouter()
@@ -64,7 +65,7 @@ async def get_document_names(
     return APIResponse(
         status=ResponseStatus.ENQUEUED,
         title="Scraping task was added to queue",
-        message=f"go to /get-document-names-result/{job_id} to see the results",
+        message=f"go to {request.base_url}krs-df/get-document-names-result/{job_id} to see the results",
         data={"job_id":job_id}
     )
 
@@ -88,7 +89,7 @@ async def get_document_names_result(
         f"\nJob id:{job_id}")
     redis_conn = request.app.state.redis
     try:
-        logging.debug(f"Fetching information from job id: {job_id}")
+        log_api_krsdf.debug(f"Fetching information from job id: {job_id}")
         job = Job.fetch(job_id, connection=redis_conn)
     except NoSuchJobError as e:
         error_message = (
@@ -134,7 +135,7 @@ async def get_document_names_result(
             status=ResponseStatus.SUCCESS,
             title="Document names retrieved",
             message="Requested document names were retrieved from host",
-            data=job.result
+            data={"job_result":job.result}
         )
     elif job.is_failed:
         log_api_krsdf.debug(
@@ -144,7 +145,7 @@ async def get_document_names_result(
             status=ResponseStatus.FAILED,
             title="Scraping job failed",
             message="Job has failed during scraping process",
-            data=job.exc_info
+            data={"job_exc_info":job.exc_info}
         )
     elif job.is_queued or job.is_started:
         # TODO add logic to cancel jobs that are running for too long
@@ -173,13 +174,76 @@ async def scrape_documents(
                 max_length=10),
     hash_ids:List[str] = Body(...)
     ):
-    # TODO add logic that will insert record with pending status
-    log_api_krsdf.info(f"Requested site: {request.url}")
-    log_api_krsdf.debut(f"Scraping {len(hash_ids)} documents for krs {krs}")
+
+    # register job id
+    # Add all hash ids for this job into db as pending
+    # Worker will search for hash id in other runs
+    # If hash id = Failed it will try and rescrape it
+    # If hash id = Succes it will update to success also 
+    # IF hash id has pending jobs:
+        # It will see if the pending jobs exist and it will
+        # Wait for them to update (timeout time)
+        # If pending jobs do not exist it will mark them as failed
+        # and run its scraping logic
+
+    
     queue = request.app.state.queues["KRSDF"]
     job_id = str(uuid.uuid4())
+    async with request.app.state.psql_asession() as session:
+        for hash_id in hash_ids:
+            ScrapingCommissions(
+                job_id=job_id,
+                hash_id=hash_id,
+                job_status=ScrapingStatus.PENDING
+            )
+        job = queue.enqueue(task_scrape_krsdf_documents, job_id, krs, hash_ids, job_id=job_id)
+        session.commit()
+
+        existing_records = (
+            session.query(RedisScrapingRegistry)
+            .filter(RedisScrapingRegistry.hash_id.in_(hash_ids))
+            .all()
+        )
+        failed_records = []
+        non_existing_records = []
+        records_to_scrape = []
+        record_by_hash_id = {r.hash_id: r for r in existing_records}
+        for hash_id in hash_ids:
+            status = record_by_hash_id[hash_id].status
+            if status is None:
+                non_existing_records.append(hash_id)
+            elif status == ScrapingStatus.FAILED
+                failed_records.append(hash_ids)
+            elif status == ScrapingStatus.PENDING:
+                #TODO logic for killing stale jobs
+                #If record updated at < 5min
+                pass
+        
+        for hash_id in failed_records:
+            record = record_by_hash_id[hash_id]
+            record.status = ScrapingStatus.PENDING
+            record.job_id = job_id
+        for hash_id in non_existing_records:
+            RedisScrapingRegistry(
+                hash_id=hash_id,
+                status=ScrapingStatus.PENDING
+
+            )
+        session.commit()
+
+
+
+
+        
+
+
+
+
+    log_api_krsdf.info(f"Requested site: {request.url}")
+    log_api_krsdf.debut(f"Scraping {len(hash_ids)} documents for krs {krs}")
+    
     log_api_krsdf.debug(f"Enqueuing job <task_scrape_krsdf_documents> id: {job_id}")
-    job = queue.enqueue(task_scrape_krsdf_documents, job_id, krs, hash_ids, job_id=job_id)
+    
     log_api_krsdf.debug(f"Scraping task added to queue. id: {job_id}")
     return APIResponse(
         status=ResponseStatus.ENQUEUED,
@@ -214,7 +278,7 @@ async def documents_scraping_status(
         status=ResponseStatus.SUCCESS,
         title="Document scraping statuses",
         message="Returning information about documen statuses that are recorded in DB",
-        data=documents
+        data={"document_statuses":documents}
     )
 
 @router.post(
