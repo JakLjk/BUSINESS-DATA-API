@@ -14,11 +14,19 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 
-from business_data_api.utils.response_templates.default_response import APIResponse, ResponseStatus
+
 from business_data_api.workers.tasks.task_scrape_krsdf_document_list import task_get_document_list
 from business_data_api.workers.tasks.task_scrape_krsdf_documents import task_scrape_krsdf_documents
 from business_data_api.db.models import RedisScrapingRegistry, ScrapedKrsDF, ScrapingCommissions
 from business_data_api.utils.logger import setup_logger
+from business_data_api.utils.response_templates.default_response import APIResponse, ResponseStatus
+from business_data_api.utils.response_templates.default_response import (
+                                                                        ScrapeDocumentsRequest,
+                                                                        DocumentScrapingStatusRequest,
+                                                                        DownloadDocumentsRequest
+                                                                        )
+from business_data_api.utils.redis_utils.redis_job_status import job_is_running
+
 
 router = APIRouter()
 
@@ -169,88 +177,38 @@ async def get_document_names_result(
     response_model=APIResponse)
 async def scrape_documents(
     request: Request,
-    krs: str = Query(..., 
-                min_length=10,
-                max_length=10),
-    hash_ids:List[str] = Body(...)
+    data: ScrapeDocumentsRequest
     ):
-
-    # register job id
-    # Add all hash ids for this job into db as pending
-    # Worker will search for hash id in other runs
-    # If hash id = Failed it will try and rescrape it
-    # If hash id = Succes it will update to success also 
-    # IF hash id has pending jobs:
-        # It will see if the pending jobs exist and it will
-        # Wait for them to update (timeout time)
-        # If pending jobs do not exist it will mark them as failed
-        # and run its scraping logic
-
-    
-    queue = request.app.state.queues["KRSDF"]
+    log_api_krsdf.info(f"Requested site: {request.url}")
+    log_api_krsdf.debug(f"Loading payload variables")
+    krs = data.krs
+    hash_ids = data.hash_ids
+    log_api_krsdf.debug(f"Generating job id")
     job_id = str(uuid.uuid4())
+    log_api_krsdf.debug(f"Opening PSQL session")
     async with request.app.state.psql_asession() as session:
+        log_api_krsdf.debug(f"Registering {len(hash_ids)} for scraping process")
         for hash_id in hash_ids:
             ScrapingCommissions(
                 job_id=job_id,
                 hash_id=hash_id,
                 job_status=ScrapingStatus.PENDING
             )
+        log_api_krsdf.debug(f"Committing information about scraping process")
+        session.commit()
+        log_api_krsdf.debug(f"Enqueuing scraping job")
+        queue = request.app.state.queues["KRSDF"]
         job = queue.enqueue(task_scrape_krsdf_documents, job_id, krs, hash_ids, job_id=job_id)
-        session.commit()
-
-        existing_records = (
-            session.query(RedisScrapingRegistry)
-            .filter(RedisScrapingRegistry.hash_id.in_(hash_ids))
-            .all()
-        )
-        failed_records = []
-        non_existing_records = []
-        records_to_scrape = []
-        record_by_hash_id = {r.hash_id: r for r in existing_records}
-        for hash_id in hash_ids:
-            status = record_by_hash_id[hash_id].status
-            if status is None:
-                non_existing_records.append(hash_id)
-            elif status == ScrapingStatus.FAILED
-                failed_records.append(hash_ids)
-            elif status == ScrapingStatus.PENDING:
-                #TODO logic for killing stale jobs
-                #If record updated at < 5min
-                pass
-        
-        for hash_id in failed_records:
-            record = record_by_hash_id[hash_id]
-            record.status = ScrapingStatus.PENDING
-            record.job_id = job_id
-        for hash_id in non_existing_records:
-            RedisScrapingRegistry(
-                hash_id=hash_id,
-                status=ScrapingStatus.PENDING
-
-            )
-        session.commit()
-
-
-
-
-        
-
-
-
-
-    log_api_krsdf.info(f"Requested site: {request.url}")
-    log_api_krsdf.debut(f"Scraping {len(hash_ids)} documents for krs {krs}")
-    
-    log_api_krsdf.debug(f"Enqueuing job <task_scrape_krsdf_documents> id: {job_id}")
-    
-    log_api_krsdf.debug(f"Scraping task added to queue. id: {job_id}")
+        log_api_krsdf.debug(f"Sending response to client")
     return APIResponse(
-        status=ResponseStatus.ENQUEUED,
+        status=ResponseStatus.SUCCESS,
         title="Scraping job for added to queue",
         message=f"Scraping of {len(hash_ids)} documents for {krs} was added to the queue",
-        data={"job_id":job_id}
-        )
+        data={
+            "job_id":job_id,
+            "hash_ids":hash_ids}
+    )
+        
 
 @router.post(
     "/documents-scraping-status",
@@ -263,23 +221,51 @@ async def scrape_documents(
     )
 async def documents_scraping_status(
     request: Request,
-    hash_ids:List[str] = Body(...)
+    data: DocumentScrapingStatus
     ):
     log_api_krsdf.info(f"Requested site: {request.url}")
+    log_api_krsdf.debug("Loading payload variables")
+    job_id = data.job_id
+    hash_ids = data.hash_ids
+    log_api_krsdf.debug("Fetching Redis connector")
+    redis_conn = request.app.state.redis
+    log_api_krsdf.debug(f"Checking if scraping job is still live")
+    is_job_still_live=job_is_running(job_id, redis_conn)
     log_api_krsdf.debug(f"Opening PostgreSQL DB session")
     async with request.app.state.psql_asession() as session:
-        log_api_krsdf.debug(f"Fetching information about existing document records from DB")
-        query = select(RedisScrapingRegistry).where(RedisScrapingRegistry.hash_id.in_(hash_ids))
-        results = await session.execute(query)
-        rows = results.scalars().all()
-    documents = {result.hash_id : result.job_status for result in rows}
-    log_api_krsdf.debug(f"Returning information about {len(documents)} records that are in DB")
-    return APIResponse(
-        status=ResponseStatus.SUCCESS,
-        title="Document scraping statuses",
-        message="Returning information about documen statuses that are recorded in DB",
-        data={"document_statuses":documents}
-    )
+        log_api_krsdf.debug(f"Requesting {len(hash_ids)} hash ids statuses from DB")
+        hash_id_scraping_records = (
+            session.query(ScrapingCommissions)
+            .filter(
+                ScrapingCommissions.job_id == job_id,
+                ScrapingCommissions.hash_id.in_(hash_ids)
+            )
+        )
+        statuses = (
+            r.hash_id:r.job_status for r in hash_id_scraping_records
+            )
+        log_api_krsdf.debug(f"Searching for pending statuses")
+        is_pending_status = any(
+            r.status==ScrapingStatus.PENDING for r in hash_id_scraping_records
+        )
+        if is_pending_status and not is_job_still_live:
+            log_api_krsdf.error(f"Found records with pending status, althoug job has finished")
+            return APIResponse(
+                status=ResponseStatus.FAILED,
+                title="There are still PENDING scraping jobsm but the job has ended",
+                message="Most probably the job has crashed, and did not finish scraping task",
+                data={
+                    "job_id":job_id,
+                    "hash_ids":hash_ids
+                    }
+            )
+        log_api_krsdf.debug(f"Returning information about scraping statuses")
+        return APIResponse(
+            status=ResponseStatus.SUCCESS,
+            title="Succesfully retrieved document statuses",
+            message="Document statutses were successfully retieved from DB",
+            data={"hash_ids_statuses":statuses}
+        )
 
 @router.post(
     "/download-documents",
@@ -294,12 +280,13 @@ async def documents_scraping_status(
     )
 async def download_documents(
     request: Request,
-    hash_ids: List[str] = Body(...)
+    data: DownloadDocumentsRequest
     ):
     # TODO add logic for handling requests which request download documents that are 
     # not in database httpexception?
-
     log_api_krsdf.info(f"Requested site: {request.url}")
+    log_api_krsdf.debug(f"Loading payload variables")
+    hash_ids = data.hash_ids
     log_api_krsdf.debug(f"Opening PostgreSQL DB session")
     async with request.app.state.psql_asession() as session:
         log_api_krsdf.debug("Fetching information about records that are to be downloaded")
@@ -312,7 +299,7 @@ async def download_documents(
         for row in rows:
             zip_file.writestr(row.document_content_save_name, row.document_content)
     zip_stream.seek(0)
-    log_api_krsdf.debug(f"Returning zipped documents to the user")
+    log_api_krsdf.debug(f"Returning zipped documents to user")
     return StreamingResponse(
         zip_stream,
         media_type="application/zip",

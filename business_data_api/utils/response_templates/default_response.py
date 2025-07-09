@@ -15,3 +15,13 @@ class APIResponse(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = {}
     
+class ScrapeDocumentsRequest(BaseModel):
+    krs:str
+    hash_ids:List[str]
+
+class DocumentScrapingStatusRequest(BaseModel):
+    job_id:str
+    hash_ids:List[str]
+
+class DownloadDocumentsRequest(BaseModel):
+    hash_ids:List[str]
