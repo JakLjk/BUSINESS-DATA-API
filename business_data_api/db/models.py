@@ -41,7 +41,7 @@ class RedisScrapingRegistry(Base):
 class ScrapingCommissions:
     id = Column(Integer, primary_key=True)
     job_id = Column(String)
-    hash_id = Column(string)
+    hash_id = Column(String)
     job_status = Column(PSQLEnum(ScrapingStatus), 
                             nullable=False,
                             default=ScrapingStatus.PENDING)

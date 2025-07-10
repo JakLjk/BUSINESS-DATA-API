@@ -14,7 +14,8 @@ from business_data_api.tasks.exceptions import (
                                             EntityNotFoundException, 
                                             InvalidParameterException,
                                             ScrapingFunctionFailed,
-                                            WebpageThrottlingException)
+                                            WebpageThrottlingException,
+                                            WebpageInMaintenanceMode)
 
 # Filter XMLParsedAsHTMLWarning, since current logic parses 
 # fragmets of XML that are embedded into HTML
@@ -67,6 +68,8 @@ class KRSDokumentyFinansowe():
         Loads the main KRS portal page
         """
         response = self._session.get(self.KRS_DF_URL)
+        # Check if webpage is notin maintenance mode
+        self._check_webpage_in_maintenance(response)
         soup = BeautifulSoup(response.text, "html.parser")
         # fetching initial viewstate
         viewstate = soup.find("input", {"name": "javax.faces.ViewState"}).get("value")
@@ -328,7 +331,7 @@ class KRSDokumentyFinansowe():
 
     def _check_webpage_throttling(self, response: requests.Response):
         """
-        Function that check if the webpage is not throttling the user
+        Function that checks if the webpage is not throttling the user
         due to issues like too many requests
         """
         response_text = response.text
@@ -342,6 +345,17 @@ class KRSDokumentyFinansowe():
             raise WebpageThrottlingException("\nWebpage sent throttling error"
                                             "\nBigger intervals between requests may be necessary"
                                             )
+    def _check_webpage_in_maintenance(self, response: requests.Response):
+        """
+        Function that checks if the webpage is in maintenance mode,
+        which in turn means that data cannot be scraped
+        """
+        soup = BeautifulSoup(response.text, 'html.parser')
+        if soup.title.string == "Przerwa techniczna":
+            raise WebpageInMaintenanceMode(
+                "\nWepage is currently in service mode"
+                "\nIt cannot be user for scraping data"
+            )
 
     def get_document_list(self) -> List:
         """

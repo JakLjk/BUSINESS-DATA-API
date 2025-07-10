@@ -19,14 +19,17 @@ from business_data_api.workers.tasks.task_scrape_krsdf_document_list import task
 from business_data_api.workers.tasks.task_scrape_krsdf_documents import task_scrape_krsdf_documents
 from business_data_api.db.models import RedisScrapingRegistry, ScrapedKrsDF, ScrapingCommissions
 from business_data_api.utils.logger import setup_logger
+from business_data_api.utils.redis_utils.redis_job_status import job_is_running
+from business_data_api.workers.tasks.status import JobTaskStatus
+from business_data_api.db.models import ScrapingStatus
 from business_data_api.utils.response_templates.default_response import APIResponse, ResponseStatus
 from business_data_api.utils.response_templates.default_response import (
-                                                                        ScrapeDocumentsRequest,
-                                                                        DocumentScrapingStatusRequest,
-                                                                        DownloadDocumentsRequest
+                                                                            DocumentNamesData,
+                                                                            DocumentScrapingStatusData,
+                                                                            JobEnqueuedData,
+                                                                            JobStatusData,
+                                                                            HashIdsRequest
                                                                         )
-from business_data_api.utils.redis_utils.redis_job_status import job_is_running
-
 
 router = APIRouter()
 
@@ -57,8 +60,8 @@ async def health(
 
 @router.get(
     "/get-document-names/{krs}",
-    summary="Get names of available documents for KRS number",
-    response_model=APIResponse)
+    summary="Add job that will fetch names of available documents for KRS number",
+    response_model=APIResponse[JobEnqueuedData])
 async def get_document_names(
     request: Request,
     krs: str
@@ -71,39 +74,39 @@ async def get_document_names(
     job = queue.enqueue(task_get_document_list, job_id, krs, job_id=job_id)
     log_api_krsdf.debug(f"Scraping task was added to queue. id:{job_id}")
     return APIResponse(
-        status=ResponseStatus.ENQUEUED,
+        status=ResponseStatus.SUCCESS,
         title="Scraping task was added to queue",
         message=f"go to {request.base_url}krs-df/get-document-names-result/{job_id} to see the results",
-        data={"job_id":job_id}
+        data=JobEnqueuedData(
+            job_id=job_id, 
+            job_enqueued_at=job.enqueued_at,
+            job_task="get_document_names",
+            job_variables={"krs":krs})
     )
-
+#TODO REFREACTOR
 @router.get(
-    "/get-document-names-result/{job_id}",
-    name="get_document_names_result",
-    summary= (
-        "Get document names that were scraped"
-        "by providing job id that was responsible for"
-        "the scraping process"
-        ),
-    response_model=APIResponse)
-async def get_document_names_result(
+    "/get-document-names-job-status/{job_id}",
+    name="get_document_names_status",
+    summary= ("Get status of document names scraping job"),
+    response_model=APIResponse[JobStatusData])
+async def get_document_names_job_status(
     request: Request,
     job_id: str
     ):
     log_api_krsdf.info(f"Requested site: {request.url}")
     log_api_krsdf.debug(
-        f"\nStarting process of fetching result "
-        f"\nof document names scraping process"
+        f"\nStarting process of fetching document names "
+        f"\nscraping job status"
         f"\nJob id:{job_id}")
     redis_conn = request.app.state.redis
     try:
-        log_api_krsdf.debug(f"Fetching information from job id: {job_id}")
+        log_api_krsdf.debug(f"Fetching information about job id: {job_id}")
         job = Job.fetch(job_id, connection=redis_conn)
     except NoSuchJobError as e:
         error_message = (
             f"\nUnable to find job  that is supposed to"
-            f"\nhave information about document names."
-            f"\nJob id:{job_id}"
+            f"\nfetch document names."
+            f"\nJob id: {job_id}"
             f"\nError: {str(e)}"
         )
         log_api_krsdf.error(error_message)
@@ -113,9 +116,9 @@ async def get_document_names_result(
         )
     except InvalidJobOperation as e:
         error_message = (
-            f"\nUnable to find job  that is supposed to"
-            f"\nhave information about document names."
-            f"\nJob id:{job_id}"
+            f"\nUnable to find job that is supposed to"
+            f"\nfetch document names."
+            f"\nJob id: {job_id}"
             f"\nError: {str(e)}"
         )
         log_api_krsdf.error(error_message)
@@ -126,8 +129,9 @@ async def get_document_names_result(
     except Exception as e:
         error_message = (
             f"\nUnknown error has occurred during process"
-            f"\nof fetching job result with document names list"
-            f"\nJob id:{job_id}"
+            f"\nof fetching job status responsible for"
+            f"\nfetching document names"
+            f"\nJob id: {job_id}"
             f"\nError: {str(e)}"
         )
         log_api_krsdf.error(error_message)
@@ -137,51 +141,104 @@ async def get_document_names_result(
         )
     if job.is_finished:
         log_api_krsdf.debug(
-            f"Job has finished. Returning document names." 
-            f"\n id:{job_id}")
+            f"Job responsible for fetching document names"
+            f"\nhas finished "
+            f"\nJob id: {job_id}"
+            )
         return APIResponse(
-            status=ResponseStatus.SUCCESS,
-            title="Document names retrieved",
-            message="Requested document names were retrieved from host",
-            data={"job_result":job.result}
+            status=SUCCESS,
+            title="Job has finished running",
+            message=(
+                "\nJob responsible for fetching document names list"
+                "\nhas finished"
+            ),
+            data=JobStatusData(
+                job_id=job_id,
+                message="Job has finished",
+                job_runtime_status=job.get_status()
+            )
         )
+    #####
     elif job.is_failed:
-        log_api_krsdf.debug(
+        error_message = (
             f"Job scraping document names list has failed." 
+            f"\n"
+            f"\n"
             f"\n id:{job_id}, \ne rror:{job.exc_info}")
+        log_api_krsdf.debug(error_message)
         return APIResponse(
             status=ResponseStatus.FAILED,
             title="Scraping job failed",
             message="Job has failed during scraping process",
-            data={"job_exc_info":job.exc_info}
+            data=JobStatusData(
+                job_id=job_id,
+                message=error_message,
+                job_task_status=JobTaskStatus.FAILED,
+                job_runtime_status=job.get_status(),
+                job_execution_info=job.exc_info()
+            )
         )
     elif job.is_queued or job.is_started:
-        # TODO add logic to cancel jobs that are running for too long
         log_api_krsdf.debug(f"Job is currently in progress. id:{job_id}")
         return APIResponse(
             status=ResponseStatus.PENDING,
             title="Job is in progress",
-            message="Job is currently being handled by worker",
-            data={
-                "job_started_at":job.started_at,
-                "job_queued_at":job.queued_at
-            }
+            message="Job is being server by worker",
+            data=JobStatusData(
+                job_id=job_id,
+                message="job is being handled by worker",
+                job_enqueued_at=job.enqueued_at,
+                job_started_at=job.started_at
+            )
         )
-
+#TODO REFREACTOR
+@router.get(
+    "/get-document-names-result"
+)
+def get_document_names_result():
+        result = job.result
+        status = result["status"]
+        if status == JobTaskStatus.SUCCESS:
+            log_api_krsdf.debug(f"Returning document names. id:{job_id}")
+            return APIResponse(
+                status=ResponseStatus.SUCCESS,
+                title="Document names retrieved",
+                message="Requested document names were retrieved from host",
+                data=DocumentNamesData(documents=result["document_list"])
+            )
+        elif status == JobTaskStatus.FAILED:
+            error_message = (
+                f"\nDocument names scraping job has failed"
+                f"\nError message:{result["error_message"]}"
+            )
+            log_api_krsdf.error(error_message)
+            return APIResponse(
+                status=ResponseStatus.FAILED,
+                title="Scraping task failed for fetching document list",
+                message=(
+                    "\nDocuments could not be retrieved because" 
+                    "\nerror has occured during job scraping process"),
+                data=JobStatusData(
+                    job_id=job_id,
+                    message=error_message,
+                    job_task_status=JobTaskStatus.FAILED,
+                    job_runtime_status=job.get_status()
+                    )
+            )
 @router.post(
-    "/scrape-documents",
+    "/scrape-documents/{krs}",
     summary=(
         "Scrape documents from the official KRS site"
         "by providing company KRS number and hash ids of documents to scrape"
         ),
-    response_model=APIResponse)
+    response_model=APIResponse[JobEnqueuedData])
 async def scrape_documents(
     request: Request,
-    data: ScrapeDocumentsRequest
+    krs:str,
+    data: HashIdsRequest
     ):
     log_api_krsdf.info(f"Requested site: {request.url}")
-    log_api_krsdf.debug(f"Loading payload variables")
-    krs = data.krs
+    log_api_krsdf.debug("Loading payload variables")
     hash_ids = data.hash_ids
     log_api_krsdf.debug(f"Generating job id")
     job_id = str(uuid.uuid4())
@@ -203,29 +260,34 @@ async def scrape_documents(
     return APIResponse(
         status=ResponseStatus.SUCCESS,
         title="Scraping job for added to queue",
-        message=f"Scraping of {len(hash_ids)} documents for {krs} was added to the queue",
-        data={
-            "job_id":job_id,
-            "hash_ids":hash_ids}
+        message=f"Scraping of {len(hash_ids)} documents was added to the queue",
+        data=JobEnqueuedData(
+            job_id=job_id,
+            job_enqueued_at=job.enqueued_at,
+            job_task="scrape_documents",
+            job_variables={
+                "krs":krs,
+                "hash_ids":hash_ids
+            }
+        )
     )
         
 
 @router.post(
-    "/documents-scraping-status",
+    "/documents-scraping-status/{job_id}",
     summary=(
         "Check status of documents."
         "Documents can be already scraped, or in queue, or not being"
         "processed at all."
         ),
-    response_model=APIResponse
+    response_model=APIResponse[Union[DocumentScrapingStatusData, JobStatusData]]
     )
 async def documents_scraping_status(
     request: Request,
-    data: DocumentScrapingStatus
+    data: HashIdsRequest
     ):
     log_api_krsdf.info(f"Requested site: {request.url}")
     log_api_krsdf.debug("Loading payload variables")
-    job_id = data.job_id
     hash_ids = data.hash_ids
     log_api_krsdf.debug("Fetching Redis connector")
     redis_conn = request.app.state.redis
@@ -241,9 +303,9 @@ async def documents_scraping_status(
                 ScrapingCommissions.hash_id.in_(hash_ids)
             )
         )
-        statuses = (
+        statuses = {
             r.hash_id:r.job_status for r in hash_id_scraping_records
-            )
+        }
         log_api_krsdf.debug(f"Searching for pending statuses")
         is_pending_status = any(
             r.status==ScrapingStatus.PENDING for r in hash_id_scraping_records
@@ -254,18 +316,22 @@ async def documents_scraping_status(
                 status=ResponseStatus.FAILED,
                 title="There are still PENDING scraping jobsm but the job has ended",
                 message="Most probably the job has crashed, and did not finish scraping task",
-                data={
-                    "job_id":job_id,
-                    "hash_ids":hash_ids
-                    }
+                data=JobStatusData(
+                    job_id=job_id,
+                    message="Job has ended without finishing scraping process for all records"
+                )
             )
         log_api_krsdf.debug(f"Returning information about scraping statuses")
         return APIResponse(
             status=ResponseStatus.SUCCESS,
             title="Succesfully retrieved document statuses",
             message="Document statutses were successfully retieved from DB",
-            data={"hash_ids_statuses":statuses}
+            data=DocumentScrapingStatusData(
+                job_id=job_id,
+                hash_id_statuses=statuses
+            )
         )
+
 
 @router.post(
     "/download-documents",
@@ -280,10 +346,8 @@ async def documents_scraping_status(
     )
 async def download_documents(
     request: Request,
-    data: DownloadDocumentsRequest
+    data: HashIdsRequest
     ):
-    # TODO add logic for handling requests which request download documents that are 
-    # not in database httpexception?
     log_api_krsdf.info(f"Requested site: {request.url}")
     log_api_krsdf.debug(f"Loading payload variables")
     hash_ids = data.hash_ids
@@ -293,6 +357,21 @@ async def download_documents(
         query = select(ScrapedKrsDF).where(ScrapedKrsDF.hash_id.in_(hash_ids))
         results = await session.execute(query)
         rows = results.scalars().all()
+    log_api_krsdf.debug(f"Looking for missing hash ids")
+    fetched_hash_ids = [r.hash_id for r in rows]
+    missing_hash_ids = [hash_id for hash_id in hash_ids if hash_id not in fetched_hash_ids]
+    if len(missing_hash_ids) > 0:
+        error_message = (
+            f"\nCould not fetch all documents from the db"
+            f"\nMaybe some of them were not scraped yet?"
+            f"\nMissing hash ids: {'\n'+'\n-'.join(missing_hash_ids)}"
+        )
+        log_api_krsapi.error(error_message)
+        raise HTTPException(
+            status_code=500,
+            detail=error_message
+        )
+        
     log_api_krsdf.debug("Creating zip stream and packing data into ZIP file")
     zip_stream = io.BytesIO()
     with zipfile.ZipFile(zip_stream, "w", zipfile.ZIP_DEFLATED) as zip_file:

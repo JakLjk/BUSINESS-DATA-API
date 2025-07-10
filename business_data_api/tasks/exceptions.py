@@ -14,3 +14,7 @@ class ScrapingFunctionFailed(Exception):
 class WebpageThrottlingException(Exception):
     """Error raised when scraped webpage raises throttling error"""
     pass
+
+class WebpageInMaintenanceMode(Exception):
+    """Webpage is in maintenance mode - currently it cannot be used for scraping"""
+    pass

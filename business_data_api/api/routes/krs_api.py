@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from fastapi.requests import Request
 from typing import Literal
 from dotenv import load_dotenv
@@ -40,7 +40,7 @@ async def health(
     )
 
 @router.get(
-    "/get-extract", 
+    "/get-extract/{krs}", 
     summary=(
         "Get KRS extract information"
         "In form of raw json response fetched from KRS API"
@@ -48,9 +48,10 @@ async def health(
     response_model=APIResponse)
 async def get_extract(
     request: Request,
-    krs: str = Query(..., 
+    krs: str = Path(...,
                     min_length=10,
-                    max_length=10),
+                    max_length=10
+                    ),
     registry: Literal["P", "S"] = Query("P"),
     extract_type: Literal["aktualny", "pelny"] = Query("aktualny")
     ):
