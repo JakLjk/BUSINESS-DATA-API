@@ -48,6 +48,7 @@ class KRSDokumentyFinansowe():
         # Holds infomrations about docuemnts that are
         # available on currently loaded documents preview table 
         self._download_documents_state = {}
+        self._next_download_element_function_triggered = False
 
     @property
     def krs_number(self):
@@ -250,7 +251,8 @@ class KRSDokumentyFinansowe():
                     row_dict['document_name'] +
                     row_dict['document_from'] +
                     row_dict['document_to']
-                ))
+                )
+            )
             table_rows.append(row_dict)
         return table_rows
 
@@ -378,6 +380,7 @@ class KRSDokumentyFinansowe():
         informations utilised by functions responsible for finding and scraping 
         krs df documents
         """
+
         if isinstance(document_hash_id_s, str):
             document_hash_id_s = [document_hash_id_s]
 
@@ -393,6 +396,7 @@ class KRSDokumentyFinansowe():
         self._download_documents_state["num_pages"] = (self._extract_number_of_pages(
                                                         self._download_documents_state["response"]))
         self._download_documents_load_next_page()
+        self._next_download_element_function_triggered = True
 
     def _download_documents_load_next_page(self):
         """
@@ -407,10 +411,16 @@ class KRSDokumentyFinansowe():
         state["matched_documents"] = [row for row in table if row['document_hash_id'] in state["hash_ids"]]
         state["current_index"] = 0
 
-    def download_documents_next_id(self) -> str | None:
+    def download_documents_next_id_value(self) -> str | None:
         """
         Functon that fetches next hash id that is supposed to be scraped
         """
+        if not self._next_download_element_function_triggered:
+            raise IndexError(
+                "\nNext element was not called"
+                "\nUse <download_documents_skip_id>"
+                "\nor <download_documents_scrape_id>")
+
         state = self._download_documents_state
         while True:
             if state["current_index"] < len(state["matched_documents"]):
@@ -428,6 +438,7 @@ class KRSDokumentyFinansowe():
         """
         state = self._download_documents_state
         state["current_index"] += 1
+        self._next_download_element_function_triggered = True
 
     def download_documents_scrape_id(self)->dict:
         """
@@ -437,6 +448,7 @@ class KRSDokumentyFinansowe():
         state = self._download_documents_state
         row = state["matched_documents"][state["current_index"]]
         state["current_index"] += 1
+        self._next_download_element_function_triggered = True
 
         internal_id = row['internal_element_id']
         hash_id = row['document_hash_id']
@@ -463,4 +475,5 @@ class KRSDokumentyFinansowe():
             'document_content':document_data,
             "document_content_file_extension":file_extension
             }
+        
         return record

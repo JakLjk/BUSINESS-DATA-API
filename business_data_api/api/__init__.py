@@ -9,7 +9,7 @@ from sqlalchemy import text
 from business_data_api.utils.logger import setup_logger
 from business_data_api.api.routes.krs_api import router as krs_api_router
 from business_data_api.api.routes.krs_dokumenty_finansowe import router as krs_df_router
-from business_data_api.db import create_async_sessionmaker
+from business_data_api.db import create_async_sessionmaker, create_tables
 
 def create_app(testing:bool = False) -> FastAPI:
     """ 
@@ -21,6 +21,7 @@ def create_app(testing:bool = False) -> FastAPI:
     log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
     psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
     psql_async_url = os.getenv("ASYNC_POSTGRESQL_URL")
+    psql_sync_url = os.getenv("SYNC_POSTGRE_URL")
 
     api_log = setup_logger(
         logger_name="fast_api_main",
@@ -51,8 +52,10 @@ def create_app(testing:bool = False) -> FastAPI:
     app.state.queues = {
         "KRSDF": Queue("KRSDF", connection=app.state.redis)
     }
+    api_log.debug("Creating missing tables")
+    create_tables(psql_sync_url)
     api_log.debug("Setting up PostgreSQL async session")
-    app.state.psql_async_session = create_async_sessionmaker(psql_async_url)
+    app.state.psql_async_sessionmaker = create_async_sessionmaker(psql_async_url)
 
     api_log.debug("Registering API blueprints")
     app.include_router(krs_api_router, prefix="/krs-api")

@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 from business_data_api.utils.logger import setup_logger
 from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
-from business_data_api.workers.tasks.status import ScrapingStatus
+from business_data_api.workers.tasks.status import JobTaskStatus
 
 load_dotenv()
 log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
@@ -27,7 +27,7 @@ def task_get_document_list(job_id:str, krs:str):
             f"Returning infromation about document list"
             f"for krs number: {krs}")
         return {
-            "status":ScrapingStatus.SUCCESS,
+            "status":JobTaskStatus.SUCCESS,
             "document_list":documents_list
         }
     except Exception as e:
@@ -39,6 +39,6 @@ def task_get_document_list(job_id:str, krs:str):
         )
         log_document_list_worker.error(error_message)
         return {
-            "status":ScrapingStatus.FAILED,
+            "status":JobTaskStatus.FAILED,
             "error_message":str(e)
         }
