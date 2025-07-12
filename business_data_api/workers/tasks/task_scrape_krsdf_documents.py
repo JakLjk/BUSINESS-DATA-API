@@ -12,10 +12,6 @@ from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokume
 from business_data_api.db import create_sync_sessionmaker
 from business_data_api.db.models import KRSDFDocuments, DocumentScrapingStatus, ScrapingStatus
 
-# TODO delete this module
-# from business_data_api.utils.redis_utils.redis_job_status import job_is_running
-
-
 
 load_dotenv()
 log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
@@ -23,10 +19,6 @@ psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
 psql_sync_url = os.getenv("SYNC_POSTGRE_URL")
 redis_url = os.getenv("REDIS_URL")
 stale_job_treshold_seconds = os.getenv("STALE_JOB_TRESHOLD_SECONDS")
-
-# Server sets as pending
-# Worker check if scraped
-# If not then scrapes 
 
 
 def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
@@ -41,52 +33,68 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
     sessionmaker = create_sync_sessionmaker(psql_sync_url)
     log_scrape_documents.debug("Fetching Redis session")
     redis_conn = Redis.from_url(redis_url)
-
-    log_scrape_documents.debug("Initialising KRS Scraper object")
-    krsdf = KRSDokumentyFinansowe(krs)
-    log_scrape_documents.debug("Initialising download documents function")
-    krsdf.download_documents(hash_ids)
-    # Track download status of each element
+    log_scrape_documents.debug("Checking if all documents are avaiable locally")
     document_download_status = {}
     scraped_documents = {}
-    while (hash_id := krsdf.download_documents_next_id_value()):
-        log_scrape_documents.debug(f"Starting process for: {hash_id}")
-        log_scrape_documents.debug("Beggining PSQL transaction")
-        with sessionmaker() as session:
-            log_scrape_documents.debug("Checking if document is already in local repository")
-            stmt = select(exists().where(KRSDFDocuments.hash_id == hash_id))
-            record_exists = session.scalar(stmt)
-        if record_exists:
-            log_scrape_documents.debug("Document already in local repository")
-            document_download_status[hash_id] = ScrapingStatus.SUCCESS
-            log_scrape_documents.debug("Skipping to next document id")
-            krsdf.download_documents_skip_id()
-        else:
-            log_scrape_documents.debug("Document not in local repository")
-            log_scrape_documents.debug("Initialising scraping process")
-            try:
-                log_scrape_documents.debug(f"Scraping document {hash_id}")
-                document = krsdf.download_documents_scrape_id()
-                document = KRSDFDocuments(**document)
-                scraped_documents[hash_id] = document
-                document_download_status[hash_id] = ScrapingStatus.SUCCESS
-                log_scrape_documents.debug(f"Document has been successfully scraped")
-            except Exception as e:
-                error_message = (
-                    f"\nError has occurred during scraping process"
-                    f"\nDocument that could not be scraped. id: {hash_id}"
-                    f"\nMarking document scraping status as FAILED"
-                    f"\nError message: {str(e)}"
-                )
-                log_scrape_documents.error(error_message)
-                document_download_status[hash_id] = ScrapingStatus.FAILED
-    if len(document_download_status) != len(hash_ids):
-        error_message = (
-            f"\nNot all document statuses were generated"
-            f"\nStatuses: {len(document_download_status)} Enqueued hash ids {len(hash_ids)}"
+    with sessionmaker() as session:
+        available_documents = (
+            session.query(KRSDFDocuments)
+            .filter(KRSDFDocuments.hash_id.in_(hash_ids))
+            .all()
         )
-        log_scrape_documents.error(error_message)
-        raise IndexError(error_message)
+        available_hash_ids = [r.hash_id for r in available_documents]
+        missing_hash_ids = [hash_id for hash_id in hash_ids if hash_id not in available_hash_ids]
+    log_scrape_documents.debug(
+        f"\nThere are {len(available_hash_ids)} documents avaialble locally"
+        f"\nAnd {len(missing_hash_ids)} documents have to be scraped"
+        )
+    for hash_id in available_hash_ids:
+        document_download_status[hash_id] = ScrapingStatus.SUCCESS
+    if missing_hash_ids:
+        log_scrape_documents.debug("Initialising KRS Scraper object")
+        krsdf = KRSDokumentyFinansowe(krs)
+        log_scrape_documents.debug("Initialising download documents function")
+        krsdf.download_documents(missing_hash_ids)
+        # Track download status of each element
+        while (hash_id := krsdf.download_documents_next_id_value()):
+            log_scrape_documents.debug(f"Starting process for: {hash_id}")
+            log_scrape_documents.debug("Beggining PSQL transaction")
+            with sessionmaker() as session:
+                log_scrape_documents.debug("Checking if document is already in local repository")
+                stmt = select(exists().where(KRSDFDocuments.hash_id == hash_id))
+                record_exists = session.scalar(stmt)
+            if record_exists:
+                log_scrape_documents.debug("Document already in local repository")
+                document_download_status[hash_id] = ScrapingStatus.SUCCESS
+                log_scrape_documents.debug("Skipping to next document id")
+                krsdf.download_documents_skip_id()
+            else:
+                log_scrape_documents.debug("Document not in local repository")
+                log_scrape_documents.debug("Initialising scraping process")
+                try:
+                    log_scrape_documents.debug(f"Scraping document {hash_id}")
+                    document = krsdf.download_documents_scrape_id()
+                    print(document["document_content_save_name"])
+                    document = KRSDFDocuments(**document)
+                    scraped_documents[hash_id] = document
+                    document_download_status[hash_id] = ScrapingStatus.SUCCESS
+                    log_scrape_documents.debug(f"Document has been successfully scraped")
+                except Exception as e:
+                    error_message = (
+                        f"\nError has occurred during scraping process"
+                        f"\nDocument that could not be scraped. id: {hash_id}"
+                        f"\nMarking document scraping status as FAILED"
+                        f"\nError message: {str(e)}"
+                    )
+                    log_scrape_documents.error(error_message)
+                    document_download_status[hash_id] = ScrapingStatus.FAILED
+        if len(document_download_status) != len(missing_hash_ids):
+            error_message = (
+                f"\nNot all document statuses were generated"
+                f"\nStatuses: {len(document_download_status)} Enqueued hash ids {len(missing_hash_ids)}"
+            )
+            log_scrape_documents.error(error_message)
+            raise IndexError(error_message)
     log_scrape_documents.debug(f"Inserting scraped documents into table")
     if scraped_documents:
         with sessionmaker() as session:
@@ -109,9 +117,8 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
                     session.query(DocumentScrapingStatus)
                     .filter(
                         DocumentScrapingStatus.job_id==job_id,
-                        DocumentScrapingStatus.hash_id==hash_id
-                        
-                    ).first()
+                        DocumentScrapingStatus.hash_id==hash_id)
+                    .first()
                 )
                 if not existing_record:
                     error_message = (

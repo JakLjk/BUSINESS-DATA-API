@@ -173,6 +173,9 @@ class KRSDokumentyFinansowe():
         }
         response =  self._session.post(self.KRS_DF_URL, headers=self._ajax_headers, data=payload)
         content_disposition = response.headers.get('Content-Disposition')
+        # Re - decoding str from content disposition to read polish signs
+        raw_content_dispositionn = content_disposition.encode('latin1')
+        content_disposition = raw_content_dispositionn.decode('utf-8')
         if not content_disposition:
             raise ValueError("File name could not be found")
         match = re.search(r'filename="(.+?)"', content_disposition)
