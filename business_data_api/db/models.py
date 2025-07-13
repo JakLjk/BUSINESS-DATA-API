@@ -12,6 +12,11 @@ class ScrapingStatus(str, Enum):
     PENDING = "pending"
 
 
+class CentralBusinessInformation(Base):
+    __tablename__ = "central_business_information"
+    krs_number = Column(String, primary_key=True)
+
+
 class KRSDFDocuments(Base):
     __tablename__ = "krs_df_documents"
     hash_id = Column(String, primary_key=True)
@@ -39,28 +44,4 @@ class DocumentScrapingStatus(Base):
     message = Column(Text)
     record_created_at = Column(TIMESTAMP, server_default=func.now())
     record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now()) 
-
-
-# class RedisScrapingRegistry(Base):
-#     __tablename__ = "redis_scraping_registry"
-#     hash_id = Column(String, primary_key=True)
-#     job_id = Column(String)
-#     job_status = Column(PSQLEnum(ScrapingStatus), 
-#                             nullable=False,
-#                             default=ScrapingStatus.PENDING)
-#     scraping_error_message = Column(Text)
-#     record_created_at = Column(TIMESTAMP, server_default=func.now())
-#     record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-
-# class ScrapingCommissions(Base):
-#     __tablename__ = "scraping_commissions"
-#     id = Column(Integer, primary_key=True)
-#     job_id = Column(String)
-#     hash_id = Column(String)
-#     job_status = Column(PSQLEnum(ScrapingStatus), 
-#                             nullable=False,
-#                             default=ScrapingStatus.PENDING)
-#     message = Column(Text)
-#     record_created_at = Column(TIMESTAMP, server_default=func.now())
-#     record_updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now()) 
 

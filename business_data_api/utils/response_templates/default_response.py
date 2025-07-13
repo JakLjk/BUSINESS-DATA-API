@@ -5,6 +5,7 @@ from datetime import datetime
 
 from business_data_api.workers.tasks.status import JobTaskStatus
 from business_data_api.db.models import ScrapingStatus
+
 data_type = TypeVar("data_type")
 
 class ResponseStatus(str, Enum):
@@ -19,8 +20,18 @@ class APIResponse(BaseModel, Generic[data_type]):
     message: str
     data: Optional[data_type] = None
 
+class DocumentInfo(BaseModel):
+    document_hash_id:str
+    document_type:str
+    document_name:str
+    document_from:str
+    document_to:str
+    document_status:str
+    class Config:
+        extra="ignore"
+
 class DocumentNamesData(BaseModel):
-    documents: List
+    documents: List[DocumentInfo]
 
 class DocumentNamesScrapingStatusData(BaseModel):
     job_id:str

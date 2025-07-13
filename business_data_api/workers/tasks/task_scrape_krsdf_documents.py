@@ -29,8 +29,6 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
     log_to_db_url=psql_log_url
     )
     log_scrape_documents.info("Initialising task for scraping document data from krsdf")
-    log_scrape_documents.debug("Removing duplicate hash ids")
-    hash_ids = list(set(hash_ids))
     log_scrape_documents.debug("Checking if all documents are avaiable locally") 
     document_download_status = {}
     with sessionmaker() as session:

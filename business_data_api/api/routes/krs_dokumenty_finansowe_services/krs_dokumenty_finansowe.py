@@ -24,6 +24,7 @@ from business_data_api.db.models import ScrapingStatus
 from business_data_api.utils.response_templates.default_response import APIResponse, ResponseStatus
 from business_data_api.utils.response_templates.default_response import (
                                                                             DocumentNamesData,
+                                                                            DocumentInfo,
                                                                             DocumentNamesScrapingStatusData,
                                                                             DocumentScrapingStatusData,
                                                                             JobEnqueuedData,
@@ -58,10 +59,57 @@ async def health(
     )
 
 @router.get(
-    "/get-document-names/{krs}",
+    "/get-document-names-from-local-krs-repository/{krs}",
+    name="get_document_names_from_local_krs_repository",
+    summary="Get document names that are already available in the local repository",
+    response_model = APIResponse[DocumentNamesData])
+async def get_document_names_from_local_krs_repository(
+    request: Request,
+    krs:str
+    ):
+    log_api_krsdf.info(f"Requested site: {request.url}")
+    log_api_krsdf.debug(f"Starting PSQL session")
+    async with request.app.state.psql_async_sessionmaker() as session:
+        log_api_krsdf.debug(f"Fetching information about existing records from local repository")
+        stmt = (
+            select(
+                KRSDFDocuments.hash_id,
+                KRSDFDocuments.document_type,
+                KRSDFDocuments.document_name,
+                KRSDFDocuments.document_date_from,
+                KRSDFDocuments.document_date_to,
+                KRSDFDocuments.document_status
+            )
+            .where(KRSDFDocuments.krs_number==krs)
+        ) 
+        result = await session.execute(stmt)
+        local_document_rows = result.all()
+        log_api_krsdf.debug(f"Found {len(local_document_rows)} documents in local db for krs {krs}")
+        document_infos = [
+            DocumentInfo(
+                document_hash_id=r.hash_id,
+                document_type=r.document_type,
+                document_name=r.document_name,
+                document_from=r.document_date_from,
+                document_to=r.document_date_to,
+                document_status=r.document_status
+            )
+            for r in local_document_rows
+        ]
+        log_api_krsdf.debug(f"Returning information to client")
+        return APIResponse(
+            status=ResponseStatus.SUCCESS,
+            title="Successfully fetched existing documents from DB",
+            message="Returning list of documents that are avaiable locally",
+            data=DocumentNamesData(documents=document_infos)
+        )
+        
+
+@router.get(
+    "/get-document-names-from-central-krs-repository/{krs}",
     summary="Add job that will fetch names of available documents for KRS number",
     response_model=APIResponse[JobEnqueuedData])
-async def get_document_names(
+async def get_document_names_from_central_krs_repository(
     request: Request,
     krs: str
     ):
@@ -83,14 +131,14 @@ async def get_document_names(
             job_variables={"krs":krs})
     )
 @router.get(
-    "/get-document-names-result/{job_id}",
-    name="get_document_names_result",
+    "/get-document-names-from-central-krs-repository-result/{job_id}",
+    name="get_document_names_from_central_krs_repository_result",
     summary= (
         "\nGet result of job fetching document names"
         "\nOr get job status if the job has not yet finished"
     ),
     response_model=APIResponse[Union[DocumentNamesData,DocumentNamesScrapingStatusData]])
-async def get_document_names_result(
+async def get_document_names_from_central_krs_repository_result(
     request: Request,
     job_id: str
     ):
@@ -152,11 +200,12 @@ async def get_document_names_result(
                 f"\nTask was completed successfully"
                 f"\nReturning document names"
             )
+            document_infos=[DocumentInfo(**result) for result in job.result["document_list"]]
             return APIResponse(
                 status=ResponseStatus.SUCCESS,
                 title="Document names retrieved",
                 message="Requested document names were retrieved from host",
-                data=DocumentNamesData(documents=job.result["document_list"])
+                data=DocumentNamesData(documents=document_infos)
         )
         elif job_task_status == JobTaskStatus.FAILED:
             log_api_krsapi.error(

@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 
 from business_data_api.utils.logger import setup_logger
-from business_data_api.api.routes.krs_api import router as krs_api_router
-from business_data_api.api.routes.krs_dokumenty_finansowe import router as krs_df_router
+from business_data_api.api.routes.krs_api_services.krs_api import router as krs_api_router
+from business_data_api.api.routes.krs_dokumenty_finansowe_services.krs_dokumenty_finansowe import router as krs_df_router
 from business_data_api.db import create_async_sessionmaker, create_tables
 
 def create_app(testing:bool = False) -> FastAPI:
