@@ -232,6 +232,8 @@ async def scrape_documents(
     log_api_krsdf.info(f"Requested site: {request.url}")
     log_api_krsdf.debug("Loading payload variables")
     hash_ids = data.hash_ids
+    log_api_krsdf.debug("Removing duplicate hash ids")
+    hash_ids = list(set(hash_ids))
     log_api_krsdf.debug(f"Generating job id")
     job_id = str(uuid.uuid4())
     log_api_krsdf.debug(f"Opening PSQL session")
@@ -449,7 +451,7 @@ async def download_documents(
             f"\nMaybe some of them were not scraped yet?"
             f"\nMissing hash ids: {'\n'+'\n-'.join(missing_hash_ids)}"
         )
-        log_api_krsapi.error(error_message)
+        log_api_krsdf.error(error_message)
         raise HTTPException(
             status_code=500,
             detail=error_message

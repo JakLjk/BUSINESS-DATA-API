@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import List
 from sqlalchemy import text, select, exists
 from sqlalchemy.exc import IntegrityError
@@ -12,15 +13,14 @@ from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokume
 from business_data_api.db import create_sync_sessionmaker
 from business_data_api.db.models import KRSDFDocuments, DocumentScrapingStatus, ScrapingStatus
 
-
 load_dotenv()
 log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
 psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
 psql_sync_url = os.getenv("SYNC_POSTGRE_URL")
 redis_url = os.getenv("REDIS_URL")
 stale_job_treshold_seconds = os.getenv("STALE_JOB_TRESHOLD_SECONDS")
-
-
+sessionmaker = create_sync_sessionmaker(psql_sync_url)
+redis_conn = Redis.from_url(redis_url)
 def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
     log_scrape_documents = setup_logger(
     logger_name=f"worker_task_get_documents_data",
@@ -29,27 +29,28 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
     log_to_db_url=psql_log_url
     )
     log_scrape_documents.info("Initialising task for scraping document data from krsdf")
-    log_scrape_documents.debug("Fetching PostgreSQL sessionmaker")
-    sessionmaker = create_sync_sessionmaker(psql_sync_url)
-    log_scrape_documents.debug("Fetching Redis session")
-    redis_conn = Redis.from_url(redis_url)
-    log_scrape_documents.debug("Checking if all documents are avaiable locally")
+    log_scrape_documents.debug("Removing duplicate hash ids")
+    hash_ids = list(set(hash_ids))
+    log_scrape_documents.debug("Checking if all documents are avaiable locally") 
     document_download_status = {}
-    scraped_documents = {}
     with sessionmaker() as session:
         available_documents = (
             session.query(KRSDFDocuments)
             .filter(KRSDFDocuments.hash_id.in_(hash_ids))
             .all()
         )
-        available_hash_ids = [r.hash_id for r in available_documents]
-        missing_hash_ids = [hash_id for hash_id in hash_ids if hash_id not in available_hash_ids]
+    available_hash_ids = [r.hash_id for r in available_documents]
+    missing_hash_ids = [hash_id for hash_id in hash_ids if hash_id not in available_hash_ids]
     log_scrape_documents.debug(
         f"\nThere are {len(available_hash_ids)} documents avaialble locally"
         f"\nAnd {len(missing_hash_ids)} documents have to be scraped"
         )
     for hash_id in available_hash_ids:
-        document_download_status[hash_id] = ScrapingStatus.SUCCESS
+        set_document_download_status(
+            job_id=job_id, 
+            hash_id=hash_id,
+            message="Document already available locally",
+            scraping_status=ScrapingStatus.SUCCESS)
     if missing_hash_ids:
         log_scrape_documents.debug("Initialising KRS Scraper object")
         krsdf = KRSDokumentyFinansowe(krs)
@@ -65,6 +66,11 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
                 record_exists = session.scalar(stmt)
             if record_exists:
                 log_scrape_documents.debug("Document already in local repository")
+                set_document_download_status(
+                    job_id=job_id, 
+                    hash_id=hash_id,
+                    message="Document already available locally",
+                    scraping_status=ScrapingStatus.SUCCESS)
                 document_download_status[hash_id] = ScrapingStatus.SUCCESS
                 log_scrape_documents.debug("Skipping to next document id")
                 krsdf.download_documents_skip_id()
@@ -74,9 +80,13 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
                 try:
                     log_scrape_documents.debug(f"Scraping document {hash_id}")
                     document = krsdf.download_documents_scrape_id()
-                    print(document["document_content_save_name"])
                     document = KRSDFDocuments(**document)
-                    scraped_documents[hash_id] = document
+                    insert_document_to_db(document=document)
+                    set_document_download_status(
+                        job_id=job_id, 
+                        hash_id=hash_id,
+                        message="Document has been scraped",
+                        scraping_status=ScrapingStatus.SUCCESS)
                     document_download_status[hash_id] = ScrapingStatus.SUCCESS
                     log_scrape_documents.debug(f"Document has been successfully scraped")
                 except Exception as e:
@@ -87,51 +97,81 @@ def task_scrape_krsdf_documents(job_id: str, krs: str, hash_ids: List[str]):
                         f"\nError message: {str(e)}"
                     )
                     log_scrape_documents.error(error_message)
+                    set_document_download_status(
+                        job_id=job_id, 
+                        hash_id=hash_id,
+                        message=error_message,
+                        scraping_status=ScrapingStatus.FAILED)
                     document_download_status[hash_id] = ScrapingStatus.FAILED
         if len(document_download_status) != len(missing_hash_ids):
+            failed_to_scrape_hash_ids = [hash_id for hash_id in missing_hash_ids if hash_id not in document_download_status.keys()]
             error_message = (
                 f"\nNot all document statuses were generated"
-                f"\nStatuses: {len(document_download_status)} Enqueued hash ids {len(missing_hash_ids)}"
+                f"\nScraped documents: {len(document_download_status)} Enqueued hash ids {len(missing_hash_ids)}"
+                f"\nHash ids that could not be scraped: {str(failed_to_scrape_hash_ids)}"
             )
             log_scrape_documents.error(error_message)
-            raise IndexError(error_message)
-    log_scrape_documents.debug(f"Inserting scraped documents into table")
-    if scraped_documents:
-        with sessionmaker() as session:
-            for hash_id, document in scraped_documents.items():
-                try:
-                    session.add(document)
-                    session.commit()
-                except IntegrityError as e:
-                    log_scrape_documents.warning(
-                        f"\nIntegrity error has occurred during process of"
-                        f"\ninserting scraped document into db"
-                        f"\nMost probably another job has inserted this record first"
-                        f"\nHash id: {hash_id}")
-                    session.rollback()
-    log_scrape_documents.debug(f"Updating document download status table")
-    if document_download_status:
-        with sessionmaker() as session:
-            for hash_id, scraping_status in document_download_status.items():
-                existing_record = (
-                    session.query(DocumentScrapingStatus)
-                    .filter(
-                        DocumentScrapingStatus.job_id==job_id,
-                        DocumentScrapingStatus.hash_id==hash_id)
-                    .first()
-                )
-                if not existing_record:
-                    error_message = (
-                        f"\nCould not find registered record for"
-                        f"\nJob id: {job_id}"
-                        f"\nHash id: {hash_id}"
-                    )
-                    log_scrape_documents.error(error_message)
-                    raise ValueError(error_message)
-                existing_record.scraping_status=scraping_status
-                existing_record.message=f"Finished scraping with status {scraping_status}"
-                session.commit()
+            set_task_as_failed(job_id=job_id, message=error_message)
     log_scrape_documents.info(f"Job has finished successfully")
+
+def set_document_download_status(
+    job_id:str, 
+    hash_id:str, 
+    scraping_status:ScrapingStatus,
+    message:str):
+    with sessionmaker() as session:
+        existing_record = (
+            session.query(DocumentScrapingStatus)
+            .filter(
+                DocumentScrapingStatus.job_id==job_id,
+                DocumentScrapingStatus.hash_id==hash_id)
+            .first()
+        )
+        if not existing_record:
+            error_message = (
+                f"\nCould not find registered record for"
+                f"\nJob id: {job_id}"
+                f"\nHash id: {hash_id}"
+            )
+            raise ValueError(error_message)
+        existing_record.scraping_status=scraping_status
+        existing_record.message=message
+        session.commit()
+    return "Successfully updated scraping status"
+        
+def insert_document_to_db(
+    document:KRSDFDocuments) -> str:
+    with sessionmaker() as session:
+        try:
+            session.add(document)
+            session.commit()
+            return "Successfully added document to db"
+        except IntegrityError as e:
+            session.rollback()
+            warning_message = (
+                f"\nIntegrity error has occurred during process of"
+                f"\ninserting scraped document into db"
+                f"\nMost probably another job has inserted this record first"
+                f"\nHash id: {hash_id}"
+                f"\nRolling back changes..."
+                )
+            return warning_message
+
+def set_task_as_failed(
+    job_id:str, 
+    message:str):
+    with sessionmaker() as session:
+        existing_records = (
+            session.query(DocumentScrapingStatus)
+            .filter(
+                DocumentScrapingStatus.job_id==job_id)
+            .all()
+        )
+        for record in existing_records:
+            record.scraping_status=ScrapingStatus.FAILED
+            record.message=message
+        session.commit()
+        return "Successfully set task status as failed"
 
 
 
