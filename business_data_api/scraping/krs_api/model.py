@@ -2,8 +2,9 @@ import requests
 from datetime import datetime
 from typing import Literal
 
-from business_data_api.tasks.exceptions import (EntityNotFoundException, 
-                                                InvalidParameterException)
+from business_data_api.scraping.exceptions import (
+    EntityNotFoundException, 
+    InvalidParameterException)
 
 class KRSApi():
     """

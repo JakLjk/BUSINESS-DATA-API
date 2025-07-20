@@ -1,6 +1,6 @@
 import pytest
 from business_data_api.tasks.krs_api.get_krs_api import KRSApi
-from business_data_api.tasks.exceptions import InvalidParameterException, EntityNotFoundException
+from business_data_api.scraping.exceptions import InvalidParameterException, EntityNotFoundException
 
 
 VALID_KRS = "0000057814"

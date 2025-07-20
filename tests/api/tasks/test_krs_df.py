@@ -1,7 +1,7 @@
 import pytest
 import warnings
 from business_data_api.tasks.krs_dokumenty_finansowe.get_krs_df import KRSDokumentyFinansowe
-from business_data_api.tasks.exceptions import (
+from business_data_api.scraping.exceptions import (
                                             EntityNotFoundException, 
                                             InvalidParameterException,
                                             ScrapingFunctionFailed,

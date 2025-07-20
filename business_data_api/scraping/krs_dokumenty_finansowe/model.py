@@ -4,13 +4,12 @@ import re
 import warnings
 import unicodedata
 import hashlib
-from typing import Literal
+from typing import Literal, Optional, List, Union, Tuple
 from lxml import etree
 from lxml.etree import XMLSyntaxError
 from bs4 import BeautifulSoup
 from bs4 import XMLParsedAsHTMLWarning
-from typing import Dict, List, Tuple
-from business_data_api.tasks.exceptions import (
+from business_data_api.scraping.exceptions import (
                                             EntityNotFoundException, 
                                             InvalidParameterException,
                                             ScrapingFunctionFailed,
@@ -375,20 +374,22 @@ class KRSDokumentyFinansowe():
             table_data.extend(self._extract_documents_table_data(response))
         return table_data
 
-    def download_documents(self, document_hash_id_s: str | List):
+    def download_documents(self, 
+            document_hash_id_s_to_omit: Optional[Union[str, List[str]]] = None):
         """
         Function responsible for initialising document
         scraping process.
-        It saves the information about requested hash ids and other
-        informations utilised by functions responsible for finding and scraping 
-        krs df documents
+        If hash ids to omit is provided,
+        functions repsonsible for downloading, skipping
+        and getting hash id name ignore the provided hash ids.
         """
-
-        if isinstance(document_hash_id_s, str):
-            document_hash_id_s = [document_hash_id_s]
+        if document_hash_id_s_to_omit is None:
+            document_hash_id_s_to_omit = []
+        if isinstance(document_hash_id_s_to_omit, str):
+            document_hash_id_s_to_omit = [document_hash_id_s_to_omit]
 
         self._download_documents_state = {
-            "hash_ids":set(document_hash_id_s),
+            "hash_ids_to_omit":set(document_hash_id_s_to_omit),
             "matched_documents":[],
             "current_index":0,
             "num_pages":0,
@@ -411,7 +412,7 @@ class KRSDokumentyFinansowe():
         state["response"] = self._request_page(state["current_page_num"], 
                                                 state["response"])
         table = self._extract_documents_table_data(state["response"])
-        state["matched_documents"] = [row for row in table if row['document_hash_id'] in state["hash_ids"]]
+        state["matched_documents"] = [row for row in table if row['document_hash_id'] not in state["hash_ids_to_omit"]]
         state["current_index"] = 0
 
     def download_documents_next_id_value(self) -> str | None:
@@ -480,3 +481,5 @@ class KRSDokumentyFinansowe():
             }
         
         return record
+
+        
