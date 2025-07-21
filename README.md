@@ -67,3 +67,4 @@ poetry run krsapi_worker.py
 - Add task-level logging functionality to catch unexpected errors during
 task scraping process
 - Add docker file for composing images for fastapi server and scraping workers
+- Add analytics endpoint responsible for returning statistical data and analysis for specific business and comparison between businesses
