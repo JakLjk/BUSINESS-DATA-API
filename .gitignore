@@ -1,5 +1,7 @@
 # User defiined 
 sandbox.py
+.DS_Store
+.DS_Store?
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -36,7 +36,7 @@ git clone https://github.com/JakLjk/BUSINESS-DATA-API
 ```bash
 poetry install
 ```
-3. Populate .env file with urls pointing to postgresql server and redis server, which are necessary to store scraped data and to manage workers.
+3. Populate .env file (you can use template .env.example, by renaming it to .env) with urls pointing to postgresql server and redis server, which are necessary to store scraped data and to manage workers.
 4. To run the server run the command:
 ```bash
 poetry run uvicorn wsgi:app --host <host ip> --port <port>
