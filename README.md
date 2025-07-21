@@ -57,8 +57,7 @@ poetry run krsapi_worker.py
 
 ## How to use the tool
 ### To get data  for specific company you need to know it's KRS number, which is unique number assigned to business entities registered in Poland's National Court Registrer.
-1. Documentation for KRS API endpoints and their corresponding functions can be accessed by opening webpage: `<server ip>:<server port>/krs-api/docs`
-2. Documentation for KRS API endpoints and their corresponding functions can be accessed by opening webpage: `<server ip>:<server port>/krs-df/docs`
+Documentation for KRS API and KRS DF endpoints and their corresponding functions can be accessed by opening webpage: `<server ip>:<server port>/docs`
 
 
 
