@@ -50,9 +50,9 @@ def setup_logger(
     stream_handler.setFormatter(formatting)
     logger.addHandler(stream_handler)
     if log_to_file:
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
         file_handler = RotatingFileHandler(
-            log_file, maxBytes=max_bytes, backupCount=backup_count
+            log_file_path, maxBytes=max_bytes_log_file_size, backupCount=backup_log_file_count
         )
         file_handler.setLevel(log_to_file_logging_level)
         file_handler.setFormatter(formatting)
