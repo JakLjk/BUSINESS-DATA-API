@@ -16,10 +16,11 @@ def check_for_updates(api_url:str, days_to_check:int=1):
     the current day to check for updates.
     """
     URL_KRS_API = "https://api-krs.ms.gov.pl/api/Krs/Biuletyn/{dzien}?godzinaOd={godzinaOd}&godzinaDo={godzinaDo}"
-    URL_ADD_KRS_BUSINESS_INFORMATION_TO_QUEUE =f"http://{api_url}/update-business-information/{{krs}}"
-    URL_ADD_KRS_DOCUMENTS_TO_QUEUE = f"http://{api_url}/update-document-list/{{krs}}"
+    URL_ADD_KRS_BUSINESS_INFORMATION_TO_QUEUE =f"http://{api_url}/krs-api/update-business-information/{{krs}}"
+    URL_ADD_KRS_DOCUMENTS_TO_QUEUE = f"http://{api_url}/krs-df/update-document-list/{{krs}}"
 
     unique_krs_numbers = set()
+    non_unique_krs_numbers = []
     date_to=datetime.date.today()
     for i, day_num in enumerate(range(days_to_check-1, -1, -1)):
         date = date_to - datetime.timedelta(days=day_num)
@@ -31,11 +32,13 @@ def check_for_updates(api_url:str, days_to_check:int=1):
             godzinaDo=23
         )).text
         krs_numbers = ast.literal_eval(krs_numbers)
+        krs_numbers = [krs.zfill(10) for krs in krs_numbers]
         unique_krs_numbers.update(krs_numbers)
     len_krs_numbers = len(unique_krs_numbers)
     for i, krs_num in enumerate(unique_krs_numbers):
         time.sleep(0.05)
-        print(f"\r[{i}/{len_krs_numbers}] Sending request for scraping krs number: {krs_num:<10}", end="", flush=True)
+        message = f"[{i+1}/{len_krs_numbers}] Sending request for scraping krs number: {krs_num}"
+        print(f"\r{message:<80}", end="", flush=True)
         requests.get(URL_ADD_KRS_BUSINESS_INFORMATION_TO_QUEUE.format(krs=krs_num)) 
         requests.get(URL_ADD_KRS_DOCUMENTS_TO_QUEUE.format(krs=krs_num)) 
     print("")

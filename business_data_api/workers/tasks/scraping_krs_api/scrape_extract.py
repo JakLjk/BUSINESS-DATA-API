@@ -36,9 +36,10 @@ def task_scrape_krs_api_extract(
     )
     log.info(f"Starting process of scraping extract for krs {krs}")
     log.debug("Fetching extract from KRS API")
-    extract_type = "aktualny"
+    extract_type = "pelny"
     for registry in ["P", "S"]:
         try:
+            log.info(f"Trying to load extract for registry type [{registry}]")
             extract = KRSApi().get_odpis(
             krs=krs,
             registry=registry,
@@ -47,8 +48,8 @@ def task_scrape_krs_api_extract(
             break
         except EntityNotFoundException as e:
             log.warning(f"\nEntity was not found for provided arguments:"
-                        f"\nKRS: {krs}",
-                        f"\nRegistry: {registry}",
+                        f"\nKRS: {krs}"
+                        f"\nRegistry: {registry}"
                         f"\nExtract type: {extract_type}")
             continue
         except InvalidParameterException as e:
@@ -63,7 +64,7 @@ def task_scrape_krs_api_extract(
     else:
         log.error(f"Entity could not be found in KRS API repository")
         raise EntityNotFoundException
-    log.info(f"starting process of populating tables with scraped extract")
+    log.info(f"Registry found - starting process of populating tables with scraped extract")
     populate_tables_etl_process(
         job_id=job_id,
         krs=krs,
@@ -85,58 +86,73 @@ def populate_tables_etl_process(job_id:str, krs:str, extract:dict):
             raw_data=extract
             
         )
-    log.debug("Populating table with company info data")
-    odpis = extract.get("odpis")
-    dane_podmiotu = (odpis
-                     .get("dane")
-                     .get("dzial1")
-                     .get("danePodmiotu"))
-    siedziba_i_adres = (odpis
-                    .get("dane")
-                    .get("dzial1")
-                    .get("siedzibaIAdres"))
-    table_company_info_data = CompanyInfo(
-        is_current=True,
-        full_name=(dane_podmiotu
-                   .get("nazwa")),
-        legal_form=(dane_podmiotu
-                   .get("formaPrawna")),
-        krs_number=krs,
-        nip_number=(dane_podmiotu
-                    .get("identyfikatory")
-                    .get("nip")),
-        regon_number=(dane_podmiotu
-                    .get("identyfikatory")
-                    .get("regon")),
-        country=(siedziba_i_adres
-                   .get("adres")
-                   .get("kraj")),
-        voivodeship=(siedziba_i_adres
-                   .get("siedziba")
-                   .get("wojewodztwo")),
-        municipality=(siedziba_i_adres
-                   .get("siedziba")
-                   .get("powiat")),
-        county=(siedziba_i_adres
-                   .get("siedziba")
-                   .get("gmina")),
-        city=(siedziba_i_adres
-                   .get("adres")
-                   .get("miejscowosc")),
-        postal_number=(siedziba_i_adres
-                   .get("adres")
-                   .get("kodPocztowy")),
-        street=(siedziba_i_adres
-                   .get("adres")
-                   .get("ulica")),
-        house_number=(siedziba_i_adres
-                   .get("adres")
-                   .get("nrDomu")),
-        email=(siedziba_i_adres
-                   .get("adresPocztyElektronicznej")),
-        webpage=(siedziba_i_adres
-                   .get("adresStronyInternetowej")),
-    )
+    # log.debug("Populating table with company info data")
+    # odpis = extract.get("odpis")
+    # dzial1 = (
+    #         odpis
+    #         .get("dane")
+    #         .get("dzial1")
+    # )
+    # dane_podmiotu = (
+    #     dzial1.get("danePodmiotu") 
+    #     or 
+    #     dzial1.get("danePodmiotuZagranicznego")
+    # )
+    # siedziba_i_adres = (odpis
+    #                 .get("dane")
+    #                 .get("dzial1")
+    #                 .get("siedzibaIAdres"))
+    # siedziba_i_adres = (
+    #     dzial1.get("siedzibaIAdres")
+    #     or
+    #     dzial1.get("siedzibaIAdresPodmiotuZagranicznego")
+    # )
+    
+    # table_company_info_data = CompanyInfo(
+    #     is_current=True,
+    #     full_name=(
+    #         dane_podmiotu.get("nazwa")),
+    #     legal_form=(
+    #         dane_podmiotu.get("formaPrawna")
+    #         or
+    #         dane_podmiotu.get("nazwaFormaPrawnaPrzedsiebiorcyZagranicznego")
+    #     ),
+    #     krs_number=krs,
+    #     nip_number=(dane_podmiotu
+    #                 .get("identyfikatory")
+    #                 .get("nip")),
+    #     regon_number=(dane_podmiotu
+    #                 .get("identyfikatory")
+    #                 .get("regon")),
+    #     country=(siedziba_i_adres
+    #                .get("adres")
+    #                .get("kraj")),
+    #     voivodeship=(siedziba_i_adres
+    #                .get("siedziba")
+    #                .get("wojewodztwo")),
+    #     municipality=(siedziba_i_adres
+    #                .get("siedziba")
+    #                .get("powiat")),
+    #     county=(siedziba_i_adres
+    #                .get("siedziba")
+    #                .get("gmina")),
+    #     city=(siedziba_i_adres
+    #                .get("adres")
+    #                .get("miejscowosc")),
+    #     postal_number=(siedziba_i_adres
+    #                .get("adres")
+    #                .get("kodPocztowy")),
+    #     street=(siedziba_i_adres
+    #                .get("adres")
+    #                .get("ulica")),
+    #     house_number=(siedziba_i_adres
+    #                .get("adres")
+    #                .get("nrDomu")),
+    #     email=(siedziba_i_adres
+    #                .get("adresPocztyElektronicznej", None)),
+    #     webpage=(siedziba_i_adres
+    #                .get("adresStronyInternetowej", None)),
+    # )
     log.info(f"Starting DB session")
     with sessionmaker() as session:
         log.debug(
@@ -145,14 +161,14 @@ def populate_tables_etl_process(job_id:str, krs:str, extract:dict):
         session.query(RawKSRAPIFullExtract).filter(
             RawKSRAPIFullExtract.krs_number==krs
         ).update({RawKSRAPIFullExtract.is_current: False})
-        log.debug(
-            f"\nSetting value of is_current to False for previous records"
-            f"\nin company info table data, for krs={krs}")
-        session.query(CompanyInfo).filter(
-            CompanyInfo.krs_number==krs
-        ).update({CompanyInfo.is_current: False})
+        # log.debug(
+        #     f"\nSetting value of is_current to False for previous records"
+        #     f"\nin company info table data, for krs={krs}")
+        # session.query(CompanyInfo).filter(
+        #     CompanyInfo.krs_number==krs
+        # ).update({CompanyInfo.is_current: False})
         log.debug(f"Adding new table records to session")
         session.add(table_raw_data)
-        session.add(table_company_info_data)
+        # session.add(table_company_info_data)
         log.info(f"Committing changes to DB")
         session.commit()

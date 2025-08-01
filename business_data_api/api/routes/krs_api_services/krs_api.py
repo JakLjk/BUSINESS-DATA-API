@@ -14,7 +14,7 @@ from business_data_api.workers.tasks.scraping_krs_api.scrape_extract import task
 from business_data_api.api.models import (
     JobEnqueued,
     JobStatus,
-    CompanyInfoResponse,)
+    CompanyInfoResponse)
 
 
 load_dotenv()
@@ -26,7 +26,6 @@ log = setup_logger(
     log_to_db_url=psql_log_url)
 
 router = APIRouter()
-
 
 @router.get(
     "/health", 
@@ -61,7 +60,7 @@ async def update_business_information(
         message="Job was successfully enqueued")
         
 @router.get(
-    "update-business-information-job-status/{job_id}",
+    "/update-business-information-job-status/{job_id}",
     summary=(
         "Use this endpoint to check status of job responsible for fetching business"
         "information from official KRS API endpoint. Job is responsible for"

@@ -68,13 +68,14 @@ def task_scrape_documents(job_id:str, krs:str):
             try:
                 session.add(data_row)
                 session.commit()
-            except IntegrityError:
+            except IntegrityError as e:
                 session.rollback()
                 log.warning(
                     f"\nIntegrity error has occurred while committing"
                     f"\ndocument to the DB"
                     f"\nMaybe another process has added this record"
                     f"\nin the time of this session (race condition)"
+                    f"\nHash id: {hash_id}"
                     f"\nError: {str(e)}")
                 # TODO check if record is in db actually, if not raise additional error
             except Exception as e:

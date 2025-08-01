@@ -59,7 +59,16 @@ poetry run krsapi_worker.py
 ### To get data  for specific company you need to know it's KRS number, which is unique number assigned to business entities registered in Poland's National Court Registrer.
 Documentation for KRS API and KRS DF endpoints and their corresponding functions can be accessed by opening webpage: `<server ip>:<server port>/docs`
 
-
+## Additional tools
+### In automation scripts folder you can find additional tools that can help with populating the database 
+You can use command
+```
+cd /automation_scripts/
+poetry run check_for_krs_updates --api-url <ip to the business data api> --days <how many days to check>
+```
+in order to scrape changes for krs numbers that were registered in official KRS API registry. 
+Those changes are then send as query to the business data API in order to scrape information about current extract and financial documents.
+This script can be used to i.e. automatically get daily changes in KRS registry in order to refresh data for the selected entities.
 
 
 ## Future Updates

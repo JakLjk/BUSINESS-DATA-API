@@ -50,3 +50,6 @@ class CompanyInfoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class HistoryOfChanges(BaseModel):
+    updated_krs: List[str]
