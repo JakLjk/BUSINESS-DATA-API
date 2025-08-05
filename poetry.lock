@@ -722,6 +722,18 @@ pool = ["psycopg-pool"]
 test = ["anyio (>=4.0)", "mypy (>=1.14)", "pproxy (>=2.7)", "pytest (>=6.2.5)", "pytest-cov (>=3.0)", "pytest-randomly (>=3.5)"]
 
 [[package]]
+name = "py4j"
+version = "0.10.9.9"
+description = "Enables Python programs to dynamically access arbitrary Java objects"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "py4j-0.10.9.9-py2.py3-none-any.whl", hash = "sha256:c7c26e4158defb37b0bb124933163641a2ff6e3a3913f7811b0ddbe07ed61533"},
+    {file = "py4j-0.10.9.9.tar.gz", hash = "sha256:f694cad19efa5bd1dee4f3e5270eb406613c974394035e5bfc4ec1aba870b879"},
+]
+
+[[package]]
 name = "pydantic"
 version = "2.11.7"
 description = "Data validation using Python type hints"
@@ -870,6 +882,27 @@ files = [
 
 [package.extras]
 windows-terminal = ["colorama (>=0.4.6)"]
+
+[[package]]
+name = "pyspark"
+version = "4.0.0"
+description = "Apache Spark Python API"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "pyspark-4.0.0.tar.gz", hash = "sha256:38db1b4f6095a080d7605e578d775528990e66dc326311d93e94a71cfc24e5a5"},
+]
+
+[package.dependencies]
+py4j = "0.10.9.9"
+
+[package.extras]
+connect = ["googleapis-common-protos (>=1.65.0)", "grpcio (>=1.67.0)", "grpcio-status (>=1.67.0)", "numpy (>=1.21)", "pandas (>=2.0.0)", "pyarrow (>=11.0.0)"]
+ml = ["numpy (>=1.21)"]
+mllib = ["numpy (>=1.21)"]
+pandas-on-spark = ["numpy (>=1.21)", "pandas (>=2.0.0)", "pyarrow (>=11.0.0)"]
+sql = ["numpy (>=1.21)", "pandas (>=2.0.0)", "pyarrow (>=11.0.0)"]
 
 [[package]]
 name = "pytest"
@@ -1181,4 +1214,4 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13"
-content-hash = "bb1e78155dbc8204e6280486dc61b6cae6d794c257a4031f1aa49e5bab84569c"
+content-hash = "3ef5f021c8c7823b924d20c9c46d0f8f66c74d5a935ba7dbe26dbf0cced926c9"
