@@ -1,4 +1,3 @@
-import os
 from fastapi import FastAPI
 from redis import Redis
 from redis.exceptions import ConnectionError
@@ -6,6 +5,12 @@ from rq import Queue
 from dotenv import load_dotenv
 from sqlalchemy import text
 
+from config import (
+    REDIS_URL, 
+    LOG_TO_POSTGRE_SQL, 
+    SOURCE_LOG_SYNC_PSQL_URL,
+    SOURCE_ASYNC_PSQL_URL,
+    SOURCE_SYNC_PSQL_URL)
 from business_data_api.utils.logger import setup_logger
 from business_data_api.api.routes.krs_api_services.krs_api import router as krs_api_router
 from business_data_api.api.routes.krs_dokumenty_finansowe_services.krs_dokumenty_finansowe import router as krs_df_router
@@ -17,12 +22,11 @@ def create_app(testing:bool = False) -> FastAPI:
     Function for initialising FastApi
     """
     # Loading environmental variables
-    load_dotenv()
-    redis_url = os.getenv("REDIS_URL")
-    log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
-    psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
-    psql_async_url = os.getenv("ASYNC_POSTGRESQL_URL")
-    psql_sync_url = os.getenv("SYNC_POSTGRE_URL")
+    redis_url = REDIS_URL
+    log_to_psql = LOG_TO_POSTGRE_SQL
+    psql_log_url = SOURCE_LOG_SYNC_PSQL_URL
+    psql_async_url = SOURCE_ASYNC_PSQL_URL
+    psql_sync_url = SOURCE_SYNC_PSQL_URL
 
     api_log = setup_logger(
         logger_name="fast_api_main",

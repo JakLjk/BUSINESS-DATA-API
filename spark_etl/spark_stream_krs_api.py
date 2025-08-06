@@ -3,20 +3,19 @@ from pyspark.sql.functions import from_json, col, instr, when, regexp_replace, e
 from pyspark.sql.functions import replace as spark_replace
 
 import os
-from dotenv import load_dotenv
 
+from config import SPARK_ENGINE_KRSAPI_URL, SPARK_SOURCE_KAFKA_URL, SPARK_ENGINE_KRSAPI_CHECKPOINTS
 from spark_etl.schemas.debezium_envelope_schema import schema as debezium_schema
 from spark_etl.schemas.krs_api_json_schema import schema as krs_api_schema
+from spark_etl.functions.write_to_psq_batch import write_to_postgres_dynamic
 
 
 def run_krs_api_stream():
-    load_dotenv()
-
     # Starting spark session 
     # With packages for psql, kafka and avro
     spark = SparkSession.builder \
-        .appName("Kafka + Postgres + Debezium2") \
-        .master(os.environ["SPARK_URL"]) \
+        .appName("KRSAPI_Spark_App") \
+        .master(SPARK_ENGINE_KRSAPI_URL) \
         .config("spark.jars.packages",
                 "org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.0,"
                 "org.apache.spark:spark-avro_2.13:4.0.0,"
@@ -26,24 +25,25 @@ def run_krs_api_stream():
     # Reading from kafka stream
     kafka_df = spark.readStream \
         .format("kafka") \
-        .option("kafka.bootstrap.servers", os.environ["PSQLD_KAFKA_STREAM_URL"]) \
+        .option("kafka.bootstrap.servers", SPARK_SOURCE_KAFKA_URL) \
         .option("subscribe", "postgres.public.raw_krs_api_full_extract") \
         .option("startingOffsets", "earliest") \
         .load()
 
+    # Parsing input send from debezium (trimming metadata)
     parsed_df = kafka_df.selectExpr("CAST(value AS STRING) as json_str") \
         .withColumn("data", from_json(col("json_str"), debezium_schema)) \
         .withColumn("id", col("data.after.id")) \
         .withColumn("numer_krs", col("data.after.krs_number")) \
         .withColumn("raw_data", col("data.after.raw_data"))
 
-
+    # Changing key values for companies based abroad (their keys have 'Zagranicznego' in some key names)
     parsed_df = parsed_df \
         .withColumn("czy_firma_zagraniczna", when(instr(col("raw_data"), "danePodmiotuZagranicznego")>0, True).otherwise(False)) \
         .withColumn("raw_data", regexp_replace(
             col("raw_data"),
-            '"siedzibaIAdresPodmiotuZagranicznego"\s*:',
-            '"siedzibaIAdres":'
+            r'"siedzibaIAdresPodmiotuZagranicznego"\s*:',
+            r'"siedzibaIAdres":'
         )) \
         .withColumn("raw_data", regexp_replace(
             col("raw_data"), 
@@ -51,6 +51,8 @@ def run_krs_api_stream():
             r'"$1":')) \
         .withColumn("parsed", from_json(col("raw_data"), krs_api_schema))
 
+
+    # Extracting data and loading it into related tables
     df_nazwa = parsed_df.select(
         col("id").alias("fk_raw_extract"),
         col("numer_krs"),
@@ -392,7 +394,7 @@ def run_krs_api_stream():
 
 
 
-
+    # List of all tables that were populated
     tables = {
         "company_names": df_nazwa,
         "legal_forms": df_forma_prawna,
@@ -417,28 +419,15 @@ def run_krs_api_stream():
         "share_privileges": df_emisje_akcji_uprzywilejowanie
     }
 
-
-
-    def write_to_postgres_dynamic(df, table_name):
-        def write_batch(batch_df, batch_id):
-            batch_df.write \
-                .format("jdbc") \
-                .mode("append") \
-                .option("url", "jdbc:postgresql://192.168.0.12:5432/db_data") \
-                .option("dbtable", f"public.{table_name}") \
-                .option("user", "docker") \
-                .option("password", "docker") \
-                .option("driver", "org.postgresql.Driver") \
-                .save()
-        return write_batch
-
+    # Table queries being loaded into DB
     queries = [] 
 
+    # For each table, load data from each batch
     for table_name, df in tables.items():
         query = df.writeStream \
             .foreachBatch(write_to_postgres_dynamic(df, table_name)) \
             .outputMode("append") \
-            .option("checkpointLocation", f"./spark_etl/checkpoints/checkpoint_{table_name}") \
+            .option("checkpointLocation", f"{SPARK_ENGINE_KRSAPI_CHECKPOINTS}_{table_name}") \
             .start()
         queries.append(query)
 

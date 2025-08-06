@@ -1,7 +1,5 @@
-import os
 import uuid
 from datetime import datetime, timezone
-from dotenv import load_dotenv
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import create_engine, Column, String, Integer, DateTime
 from logging import Handler, LogRecord

@@ -1,13 +1,10 @@
-import os
 import uuid
-from typing import Literal
-from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from fastapi import APIRouter, HTTPException
 from fastapi.requests import Request
 from rq.job import Job
 from sqlalchemy import select
 
-
+from config import LOG_TO_POSTGRE_SQL, SOURCE_LOG_SYNC_PSQL_URL
 from business_data_api.utils.logger import setup_logger
 from business_data_api.db.models import CompanyInfo
 from business_data_api.workers.tasks.scraping_krs_api.scrape_extract import task_scrape_krs_api_extract
@@ -16,10 +13,8 @@ from business_data_api.api.models import (
     JobStatus,
     CompanyInfoResponse)
 
-
-load_dotenv()
-log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
-psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
+log_to_psql = LOG_TO_POSTGRE_SQL
+psql_log_url = SOURCE_LOG_SYNC_PSQL_URL
 log = setup_logger(
     logger_name="route_krs_api",
     log_to_db=log_to_psql,

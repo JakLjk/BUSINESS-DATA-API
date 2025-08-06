@@ -1,4 +1,3 @@
-import os
 import uuid
 import io
 import zipfile
@@ -8,7 +7,8 @@ from fastapi.responses import StreamingResponse
 from rq.job import Job
 from rq.exceptions import NoSuchJobError, InvalidJobOperation
 from sqlalchemy import select
-from dotenv import load_dotenv
+
+from config import LOG_TO_POSTGRE_SQL, SOURCE_LOG_SYNC_PSQL_URL
 from business_data_api.utils.logger import setup_logger
 from business_data_api.db.models import KRSDFDocuments
 from business_data_api.workers.tasks.scraping_krs_df.scrape_documents import task_scrape_documents
@@ -20,9 +20,8 @@ from business_data_api.api.models import(
     RequestHashIDs,
 )
 
-load_dotenv()
-log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
-psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
+log_to_psql = LOG_TO_POSTGRE_SQL
+psql_log_url = SOURCE_LOG_SYNC_PSQL_URL
 log = setup_logger(
     logger_name="route_krs_df",
     log_to_db=log_to_psql,

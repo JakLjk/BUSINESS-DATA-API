@@ -3,6 +3,7 @@ sandbox.py
 .DS_Store
 .DS_Store?
 checkpoint_*
+artifacts
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

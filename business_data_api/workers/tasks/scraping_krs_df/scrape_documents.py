@@ -3,17 +3,23 @@ from dotenv import load_dotenv
 from redis import Redis
 from sqlalchemy.exc import IntegrityError
 
+from config import (
+    LOG_TO_POSTGRE_SQL, 
+    SOURCE_LOG_SYNC_PSQL_URL, 
+    SOURCE_SYNC_PSQL_URL,
+    REDIS_URL,
+    STALE_JOB_TRESHOLD_SECONDS)
 from business_data_api.utils.logger import setup_logger
 from business_data_api.db import create_sync_sessionmaker
 from business_data_api.scraping.krs_dokumenty_finansowe.model import KRSDokumentyFinansowe
 from business_data_api.db.models import KRSDFDocuments
 
 load_dotenv()
-log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
-psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
-psql_sync_url = os.getenv("SYNC_POSTGRE_URL")
-redis_url = os.getenv("REDIS_URL")
-stale_job_treshold_seconds = os.getenv("STALE_JOB_TRESHOLD_SECONDS")
+log_to_psql = LOG_TO_POSTGRE_SQL
+psql_log_url = SOURCE_LOG_SYNC_PSQL_URL
+psql_sync_url = SOURCE_SYNC_PSQL_URL
+redis_url = REDIS_URL
+stale_job_treshold_seconds = STALE_JOB_TRESHOLD_SECONDS
 sessionmaker = create_sync_sessionmaker(psql_sync_url)
 redis_conn = Redis.from_url(redis_url)
 

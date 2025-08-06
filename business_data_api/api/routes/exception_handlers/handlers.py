@@ -1,14 +1,12 @@
-import os
-from dotenv import load_dotenv
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import traceback
 
+from config import LOG_LEVEL_POSTGRE_SQL, SOURCE_LOG_SYNC_PSQL_URL
 from business_data_api.utils.logger import setup_logger
 
-load_dotenv()
-log_to_psql = bool(os.getenv("LOG_POSTGRE_SQL"))
-psql_log_url = os.getenv("LOG_URL_POSTGRE_SQL")
+log_to_psql = LOG_LEVEL_POSTGRE_SQL
+psql_log_url = SOURCE_LOG_SYNC_PSQL_URL
 log = setup_logger(
     logger_name="api_global_exceptions_handler",
     log_to_db=log_to_psql,
