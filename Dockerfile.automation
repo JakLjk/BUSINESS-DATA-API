@@ -1,0 +1,19 @@
+FROM python:3.13-slim
+
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl gcc libpq-dev build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -sSL https://install.python-poetry.org | python3 - \
+    && ln -s /root/.local/bin/poetry /usr/local/bin/poetry 
+    
+WORKDIR /app
+
+COPY projects.toml poetry.lock ./
+
+RUN peotry config virtualenvs.create false \
+    && poetry install --no-root --no-interaction --no-ansi
+
+COPY config.py /app/config.py
+COPY automation_scripts /app/

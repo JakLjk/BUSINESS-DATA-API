@@ -4,7 +4,13 @@ from pyspark.sql.functions import replace as spark_replace
 
 import os
 
-from config import SPARK_ENGINE_KRSAPI_URL, SPARK_SOURCE_KAFKA_URL, SPARK_ENGINE_KRSAPI_CHECKPOINTS
+from config import (
+    SPARK_ENGINE_KRSAPI_URL, 
+    SPARK_SOURCE_KAFKA_URL, 
+    SPARK_ENGINE_KRSAPI_CHECKPOINTS,
+    SPARK_EXECUTOR_CORES,
+    SPARK_EXECUTOR_MEMORY,
+    SPARK_SOURCE_KAFKA_SUB_PATH)
 from spark_etl.schemas.debezium_envelope_schema import schema as debezium_schema
 from spark_etl.schemas.krs_api_json_schema import schema as krs_api_schema
 from spark_etl.functions.write_to_psq_batch import write_to_postgres_dynamic
@@ -20,13 +26,15 @@ def run_krs_api_stream():
                 "org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.0,"
                 "org.apache.spark:spark-avro_2.13:4.0.0,"
                 "org.postgresql:postgresql:42.7.3") \
+        .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
+        .config("spark.executor.cores", SPARK_EXECUTOR_CORES) \
         .getOrCreate()
 
     # Reading from kafka stream
     kafka_df = spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", SPARK_SOURCE_KAFKA_URL) \
-        .option("subscribe", "postgres.public.raw_krs_api_full_extract") \
+        .option("subscribe", SPARK_SOURCE_KAFKA_SUB_PATH) \
         .option("startingOffsets", "earliest") \
         .load()
 
@@ -393,8 +401,6 @@ def run_krs_api_stream():
     )
 
 
-
-    # List of all tables that were populated
     tables = {
         "company_names": df_nazwa,
         "legal_forms": df_forma_prawna,

@@ -1,1 +1,7 @@
 .env
+checkpoint_*
+sandbox.py
+.DS_Store
+.DS_Store?
+artifacts
+*.log

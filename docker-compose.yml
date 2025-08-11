@@ -26,6 +26,7 @@ services:
     env_file:
       - .env
     depends_on:
+    # Eligible to change when stack will be adapted to wokr on multi-docker/host environment
       - redis
       - api_endpoint
   
@@ -48,3 +49,7 @@ services:
     container_name: business_data_spark
     env_file:
       - .env
+    # Necessary in order to connect to spark engine service
+    network_mode: host
+    volumes:
+      - ${DOCKER_PERSISTENT_CHECKPOINT_PATH:-/tmp/spark_checkpoints}:/app/spark_etl/checkpoints
