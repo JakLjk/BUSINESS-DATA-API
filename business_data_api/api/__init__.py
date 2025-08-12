@@ -11,7 +11,8 @@ from config import (
     SOURCE_LOG_SYNC_PSQL_URL,
     SOURCE_ASYNC_PSQL_URL,
     SOURCE_SYNC_PSQL_URL)
-from business_data_api.utils.logger import setup_logger
+# from business_data_api.utils.logger import setup_logger
+from logging_utils import setup_logger
 from business_data_api.api.routes.krs_api_services.krs_api import router as krs_api_router
 from business_data_api.api.routes.krs_dokumenty_finansowe_services.krs_dokumenty_finansowe import router as krs_df_router
 from business_data_api.api.routes.exception_handlers.handlers import global_exception_handler

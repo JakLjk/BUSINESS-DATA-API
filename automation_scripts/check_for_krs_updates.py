@@ -5,6 +5,18 @@ import time
 import ast
 import argparse
 
+from config import (
+    LOG_TO_POSTGRE_SQL,
+    SOURCE_LOG_SYNC_PSQL_URL
+)
+from logging_utils import setup_logger
+
+log = setup_logger(
+    logger_name="krsapi_scheduler_log_job",
+    log_to_db=LOG_TO_POSTGRE_SQL,
+    log_to_db_url=SOURCE_LOG_SYNC_PSQL_URL
+)
+log.propagate = False
 
 def check_for_updates(api_url:str, days_to_check:int=1):
     """
@@ -18,14 +30,17 @@ def check_for_updates(api_url:str, days_to_check:int=1):
     URL_KRS_API = "https://api-krs.ms.gov.pl/api/Krs/Biuletyn/{dzien}?godzinaOd={godzinaOd}&godzinaDo={godzinaDo}"
     URL_ADD_KRS_BUSINESS_INFORMATION_TO_QUEUE =f"http://{api_url}/krs-api/update-business-information/{{krs}}"
     URL_ADD_KRS_DOCUMENTS_TO_QUEUE = f"http://{api_url}/krs-df/update-document-list/{{krs}}"
-
+    
+    log.info("Initialising job")
     unique_krs_numbers = set()
     non_unique_krs_numbers = []
     date_to=datetime.date.today()
+    log.info(f"Checkiing for {days_to_check} last days")
+    log.info("Gathering KRS numbers")
     for i, day_num in enumerate(range(days_to_check-1, -1, -1)):
+        log.info(f"Scraping day {i+1}/{days_to_check}")
         date = date_to - datetime.timedelta(days=day_num)
         message = f"[{i+1}/{days_to_check}] Fetching krs changes for day {date}"
-        print(f"\r{message:<80}", end="", flush=True)
         krs_numbers = requests.get(URL_KRS_API.format(
             dzien=f"{date.year}-{date.month:02d}-{date.day:02d}",
             godzinaOd=0,
@@ -35,6 +50,7 @@ def check_for_updates(api_url:str, days_to_check:int=1):
         krs_numbers = [krs.zfill(10) for krs in krs_numbers]
         unique_krs_numbers.update(krs_numbers)
     len_krs_numbers = len(unique_krs_numbers)
+    log.info(f"Sending {str(len_krs_numbers)} krs records to backend for scraping")
     for i, krs_num in enumerate(unique_krs_numbers):
         time.sleep(0.05)
         message = f"[{i+1}/{len_krs_numbers}] Sending request for scraping krs number: {krs_num}"
@@ -42,6 +58,7 @@ def check_for_updates(api_url:str, days_to_check:int=1):
         requests.get(URL_ADD_KRS_BUSINESS_INFORMATION_TO_QUEUE.format(krs=krs_num)) 
         requests.get(URL_ADD_KRS_DOCUMENTS_TO_QUEUE.format(krs=krs_num)) 
     print("")
+    log.info("KRS numbers were sent successfully")
     
 
 if __name__ == "__main__":

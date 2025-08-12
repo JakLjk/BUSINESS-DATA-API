@@ -3,7 +3,8 @@ from fastapi.responses import JSONResponse
 import traceback
 
 from config import LOG_LEVEL_POSTGRE_SQL, SOURCE_LOG_SYNC_PSQL_URL
-from business_data_api.utils.logger import setup_logger
+# from business_data_api.utils.logger import setup_logger
+from logging_utils import setup_logger
 
 log_to_psql = LOG_LEVEL_POSTGRE_SQL
 psql_log_url = SOURCE_LOG_SYNC_PSQL_URL

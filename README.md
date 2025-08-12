@@ -54,7 +54,10 @@ poetry run krsdf_worker.py
 ```bash
 poetry run krsapi_worker.py
 ```
-
+7. To run spark stream job responsible for ETL process for raw KRS API DATA run command:
+```bash
+poetry run python run_spark.py
+```
 ## How to use the tool
 ### To get data  for specific company you need to know it's KRS number, which is unique number assigned to business entities registered in Poland's National Court Registrer.
 Documentation for KRS API and KRS DF endpoints and their corresponding functions can be accessed by opening webpage: `<server ip>:<server port>/docs`
@@ -63,16 +66,29 @@ Documentation for KRS API and KRS DF endpoints and their corresponding functions
 ### In automation scripts folder you can find additional tools that can help with populating the database 
 You can use command
 ```
-cd /automation_scripts/
+poetry run python run_automation.py
+```
+or
+```bash
+cd /automation_scripts
 poetry run check_for_krs_updates --api-url <ip to the business data api> --days <how many days to check>
 ```
-in order to scrape changes for krs numbers that were registered in official KRS API registry. 
+This automation script can be used in order to scrape changes for krs numbers that were registered in official KRS API registry. 
 Those changes are then send as query to the business data API in order to scrape information about current extract and financial documents.
-This script can be used to i.e. automatically get daily changes in KRS registry in order to refresh data for the selected entities.
+This script can be used to i.e. automatically get daily changes in KRS registry in order to refresh data for all updated entities.
+
+## Config file
+In order for the tool to work, attached .env.example file has to be filled with values that will tell the script where to point in order to conenct to i.e. Redis queue, PSQL Database resposible for storing raw data, trasnformed data, and log data. The name of the file should then be changed to .env.
+If project is used in docker stack, some ip addresses can be left the way they are in the .env.example file. For example, `REDIS_HOST=redis://redis` will point to the addres of redis server container with name 'redis', that is in the same docker network as the rest of the stack
 
 
+## Docker configuration
+Attached Makefile has pre-configured commands that allow for running the stack in different configurations, such as:
+- `sudo make run-base` - will run docker images that are necessary for backend api to work, such as redis server, fastapi backend, and single worker nodes for scrpaing KRS Financial Documents and KRS API json registrar.
+- `sudo make run-spark-d` - will run only spark ETL job in detached mode
+- `sudo make down-spark` - will stop and remove only spark container
 ## Future Updates
 - Add task-level logging functionality to catch unexpected errors during
 task scraping process
-- Add docker file for composing images for fastapi server and scraping workers
 - Add analytics endpoint responsible for returning statistical data and analysis for specific business and comparison between businesses
+- ~~Add docker file for composing images for fastapi server and scraping workers~~

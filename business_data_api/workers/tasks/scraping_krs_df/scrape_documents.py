@@ -9,7 +9,8 @@ from config import (
     SOURCE_SYNC_PSQL_URL,
     REDIS_URL,
     STALE_JOB_TRESHOLD_SECONDS)
-from business_data_api.utils.logger import setup_logger
+# from business_data_api.utils.logger import setup_logger
+from logging_utils import setup_logger
 from business_data_api.db import create_sync_sessionmaker
 from business_data_api.scraping.krs_dokumenty_finansowe.model import KRSDokumentyFinansowe
 from business_data_api.db.models import KRSDFDocuments

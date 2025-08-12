@@ -42,6 +42,14 @@ services:
       - redis
       - api_endpoint
 
+  automation-krsapi-refresh:
+    build:
+      context: .
+      dockerfile:  Dockerfile.automation
+    container_name: "krsapi_automation_refresh"
+    env_file:
+      - .env
+
   spark-etl:
     build:
       context: .

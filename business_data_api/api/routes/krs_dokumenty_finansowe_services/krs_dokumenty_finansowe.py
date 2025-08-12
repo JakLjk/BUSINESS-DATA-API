@@ -9,7 +9,8 @@ from rq.exceptions import NoSuchJobError, InvalidJobOperation
 from sqlalchemy import select
 
 from config import LOG_TO_POSTGRE_SQL, SOURCE_LOG_SYNC_PSQL_URL
-from business_data_api.utils.logger import setup_logger
+# from business_data_api.utils.logger import setup_logger
+from logging_utils import setup_logger
 from business_data_api.db.models import KRSDFDocuments
 from business_data_api.workers.tasks.scraping_krs_df.scrape_documents import task_scrape_documents
 from business_data_api.api.models import(

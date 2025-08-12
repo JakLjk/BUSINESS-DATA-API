@@ -16,6 +16,7 @@ RUN poetry config virtualenvs.create false && \
     poetry install --no-root --no-interaction --no-ansi
 
 COPY config.py /app/config.py
+COPY logging_utils /app/logging_utils
 COPY business_data_api /app/business_data_api
 COPY wsgi.py /app/wsgi.py
 COPY run_worker.py /app/run_worker.py

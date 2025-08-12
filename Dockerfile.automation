@@ -10,10 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     
 WORKDIR /app
 
-COPY projects.toml poetry.lock ./
+COPY pyproject.toml poetry.lock ./
 
-RUN peotry config virtualenvs.create false \
-    && poetry install --no-root --no-interaction --no-ansi
+RUN poetry config virtualenvs.create false && \
+    poetry install --no-root --no-interaction --no-ansi
 
 COPY config.py /app/config.py
-COPY automation_scripts /app/
+COPY logging_utils /app/logging_utils
+COPY run_automation.py /app/run_automation.py
+COPY automation_scripts /app/automation_scripts
+
+CMD ["poetry", "run", "python", "run_automation.py"]
+
