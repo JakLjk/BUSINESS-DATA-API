@@ -14,6 +14,8 @@ from logging_utils import setup_logger
 from business_data_api.db import create_sync_sessionmaker
 from business_data_api.scraping.krs_dokumenty_finansowe.model import KRSDokumentyFinansowe
 from business_data_api.db.models import KRSDFDocuments
+from business_data_api.scraping.exceptions import ScrapingFunctionFailed
+
 
 load_dotenv()
 log_to_psql = LOG_TO_POSTGRE_SQL
@@ -63,6 +65,12 @@ def task_scrape_documents(job_id:str, krs:str):
         log.debug(f"Scraping hash id {hash_id}")
         try:
             document = krsdf.download_documents_scrape_id()
+        except ScrapingFunctionFailed:
+            log.warning(
+                f"\nScraping exception has occured during process"
+                f"\nprocess for hash_id: {hash_id}"
+                f"\nException: {str(e)}")
+            continue
         except Exception as e:
             log.error(
                 f"\nException has occured during scraping"

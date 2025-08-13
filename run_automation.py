@@ -44,12 +44,22 @@ if __name__ == "__main__":
                 when=most_recent_time,
                 retval=getattr(event, "retval", None)
             ))
+            job = schd.get_job(event.job_id)
+            next_run = job.next_run_time.isoformat() if job and job.next_run_time else "No runs planned"
+            log.info("Scheduler next run for job {id}: {run_eta}".format(
+                id=event.job_id,
+                run_eta=next_run))
         elif event.code == EVENT_JOB_ERROR:
             log.error("Job error id={id} when={when}".format(
                 id=event.job_id,
                 when=most_recent_time,
                 exc_info=True
             ))
+            job = schd.get_job(event.job_id)
+            next_run = job.next_run_time.isoformat() if job and job.next_run_time else "No runs planned"
+            log.info("Scheduler next run for job {id}: {run_eta}".format(
+                id=event.job_id,
+                run_eta=next_run))
     schd.add_listener(schd_event, EVENT_JOB_ERROR | EVENT_JOB_EXECUTED | EVENT_JOB_SUBMITTED)
     job = schd.add_job(
         check_for_updates,

@@ -313,6 +313,7 @@ class KRSDokumentyFinansowe():
             f"\nFile name = Error most probably means that the id provided"
             f"\nby '_extract_pokaz_tresc_dokumentu_id' is incorrect"
             f"\n(due to scraping error or webpage structure change)"
+            f"\nor the webpage does not host the file for this record"
             f"Filename: {filename}")
 
     def _check_exist_documents_for_krs(self, response: requests.Response) -> bool:

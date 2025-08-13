@@ -22,7 +22,7 @@ services:
       context: .
       dockerfile: Dockerfile.api
     command: ["poetry", "run", "python", "run_worker.py", "KRSAPI"]
-    container_name: business_data_worker_krsapi
+    # container_name: business_data_worker_krsapi
     env_file:
       - .env
     depends_on:
@@ -35,7 +35,7 @@ services:
       context: .
       dockerfile: Dockerfile.api
     command: ["poetry", "run", "python", "run_worker.py", "KRSDF"]
-    container_name: business_data_worker_krsdf
+    # container_name: business_data_worker_krsdf
     env_file:
       - .env
     depends_on:
@@ -61,3 +61,6 @@ services:
     network_mode: host
     volumes:
       - ${DOCKER_PERSISTENT_CHECKPOINT_PATH:-/tmp/spark_checkpoints}:/app/spark_etl/checkpoints
+
+volumes:
+  redis_registry_volume_1:

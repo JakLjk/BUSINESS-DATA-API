@@ -1,4 +1,18 @@
 # BUSINESS DATA API
+[![Docker](https://img.shields.io/badge/docker-ready-blue)](#)
+[![Spark](https://img.shields.io/badge/spark-4.0.0-orange)](#)
+[![requests](https://img.shields.io/badge/requests-2.32.3-blue)](#)
+[![lxml](https://img.shields.io/badge/lxml-5.4.0-brightgreen)](#)
+[![redis](https://img.shields.io/badge/redis-6.2.0-red)](#)
+[![rq](https://img.shields.io/badge/rq-2.3.3-lightgrey)](#)
+[![sqlalchemy](https://img.shields.io/badge/sqlalchemy-2.0.41-blue)](#)
+[![fastapi](https://img.shields.io/badge/fastapi-0.115.13-green)](#)
+[![uvicorn](https://img.shields.io/badge/uvicorn-0.34.3-orange)](#)
+[![asyncpg](https://img.shields.io/badge/asyncpg-0.30.0-blueviolet)](#)
+[![psycopg](https://img.shields.io/badge/psycopg-3.2.9-blueviolet)](#)
+[![pydantic](https://img.shields.io/badge/pydantic-2.11.7-green)](#)
+[![apscheduler](https://img.shields.io/badge/apscheduler-3.11.0-lightgrey)](#)
+# About Project
 API for scraping, parsing and storing information about companies registered in Poland.
 
 ## Features

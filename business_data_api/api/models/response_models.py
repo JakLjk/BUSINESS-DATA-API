@@ -53,3 +53,15 @@ class CompanyInfoResponse(BaseModel):
 
 class HistoryOfChanges(BaseModel):
     updated_krs: List[str]
+
+
+class RedisQueueMetadata(BaseModel):
+    jobs_enqueued: int
+    jobs_started: int
+    jobs_deferred: int
+    jobs_scheduled: int
+    jobs_failed: int
+    jobs_finished: int
+
+class RedisQueuesInformation(BaseModel):  
+    metadata: dict[str, RedisQueueMetadata]

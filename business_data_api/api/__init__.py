@@ -13,6 +13,7 @@ from config import (
     SOURCE_SYNC_PSQL_URL)
 # from business_data_api.utils.logger import setup_logger
 from logging_utils import setup_logger
+from business_data_api.api.routes.root.root import router as root_router
 from business_data_api.api.routes.krs_api_services.krs_api import router as krs_api_router
 from business_data_api.api.routes.krs_dokumenty_finansowe_services.krs_dokumenty_finansowe import router as krs_df_router
 from business_data_api.api.routes.exception_handlers.handlers import global_exception_handler
@@ -67,6 +68,7 @@ def create_app(testing:bool = False) -> FastAPI:
     api_log.debug(f"Registering exception handlers")
     app.add_exception_handler(Exception, global_exception_handler)
     api_log.debug("Registering API blueprints")
+    app.include_router(root_router, prefix="/data")
     app.include_router(krs_api_router, prefix="/krs-api")
     app.include_router(krs_df_router, prefix="/krs-df")
 
