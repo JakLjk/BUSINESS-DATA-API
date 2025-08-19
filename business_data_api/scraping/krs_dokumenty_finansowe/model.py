@@ -331,7 +331,7 @@ class KRSDokumentyFinansowe():
             return
         soup = BeautifulSoup(no_documents_element, 'html.parser')
         if 'Brak dokumentów dla KRS:' in soup.get_text():
-            raise EntityNotFoundException("Server Error - No documents for specified KRS")
+            raise EntityNotFoundException(f"Server Error - No documents for specified KRS")
 
     def _check_webpage_throttling(self, response: requests.Response):
         """

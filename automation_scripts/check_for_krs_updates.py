@@ -35,11 +35,11 @@ def check_for_updates(api_url:str, days_to_check:int=1):
     unique_krs_numbers = set()
     non_unique_krs_numbers = []
     date_to=datetime.date.today()
-    log.info(f"Checkiing for {days_to_check} last days")
+    log.info(f"Checking for {days_to_check} last days")
     log.info("Gathering KRS numbers")
     for i, day_num in enumerate(range(days_to_check-1, -1, -1)):
-        log.info(f"Scraping day {i+1}/{days_to_check}")
         date = date_to - datetime.timedelta(days=day_num)
+        log.info(f"Scraping day {date.strftime("%Y-%m-%d")} {i+1}/{days_to_check}")
         message = f"[{i+1}/{days_to_check}] Fetching krs changes for day {date}"
         krs_numbers = requests.get(URL_KRS_API.format(
             dzien=f"{date.year}-{date.month:02d}-{date.day:02d}",

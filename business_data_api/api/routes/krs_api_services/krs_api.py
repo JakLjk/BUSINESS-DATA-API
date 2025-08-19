@@ -7,7 +7,7 @@ from sqlalchemy import select
 from config import LOG_TO_POSTGRE_SQL, SOURCE_LOG_SYNC_PSQL_URL
 # from business_data_api.utils.logger import setup_logger
 from logging_utils import setup_logger
-from business_data_api.db.models import CompanyInfo
+# from business_data_api.db.models import CompanyInfo
 from business_data_api.workers.tasks.scraping_krs_api.scrape_extract import task_scrape_krs_api_extract
 from business_data_api.api.models import (
     JobEnqueued,
@@ -88,31 +88,31 @@ async def update_business_information_job_status(
             job_result=job.result,
             job_exc_info=job.exc_info,)
 
-@router.get(
-    "/download-business-information/{krs}",
-    summary=(
-        "Use this endpoint to download informations about business,"
-        "that are available in the local repository"
-    ),
-    response_model=CompanyInfoResponse)
-async def download_business_information(
-    request:Request,
-    krs:str):
-    log.info(f"Fetching business informations from local repository. krs: {krs}")
-    async with request.app.state.psql_async_sessionmaker() as session:
-        stmt = (
-            select(CompanyInfo)
-            .where(
-                CompanyInfo.krs_number==krs,
-                CompanyInfo.is_current==True
-            )
-        )
-        result = await session.execute(stmt)
-        company = result.scalars().first()
-    if company is None:
-        log.error(f"Could not find information about krs {krs} in local DB")
-        raise HTTPException(
-            status_code=404,
-            detail="Company not found")
-    log.debug(f"Returning information about business to client")
-    return company
+# @router.get(
+#     "/download-business-information/{krs}",
+#     summary=(
+#         "Use this endpoint to download informations about business,"
+#         "that are available in the local repository"
+#     ),
+#     response_model=CompanyInfoResponse)
+# async def download_business_information(
+#     request:Request,
+#     krs:str):
+#     log.info(f"Fetching business informations from local repository. krs: {krs}")
+#     async with request.app.state.psql_async_sessionmaker() as session:
+#         stmt = (
+#             select(CompanyInfo)
+#             .where(
+#                 CompanyInfo.krs_number==krs,
+#                 CompanyInfo.is_current==True
+#             )
+#         )
+#         result = await session.execute(stmt)
+#         company = result.scalars().first()
+#     if company is None:
+#         log.error(f"Could not find information about krs {krs} in local DB")
+#         raise HTTPException(
+#             status_code=404,
+#             detail="Company not found")
+#     log.debug(f"Returning information about business to client")
+#     return company

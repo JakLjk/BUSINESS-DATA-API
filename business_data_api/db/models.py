@@ -48,37 +48,37 @@ class RawKSRAPIFullExtract(Base):
     raw_data = Column(JSONB, nullable=False)
     
     
-class CompanyInfo(Base):
-    __tablename__ = "company_info"
-    id = Column(Integer, primary_key=True, index=True)
-    record_created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now())
-    is_current = Column(Boolean, default=False)
-    full_name = Column(String(250), nullable=False)
-    legal_form = Column(String(100), nullable=False)
-    krs_number = Column(String(14), nullable=False)
-    nip_number = Column(String(10), nullable=False)
-    regon_number = Column(String(14), nullable=False)
-    country = Column(String(100), nullable=True)
-    voivodeship = Column(String(100), nullable=True)
-    municipality = Column(String(100), nullable=True)
-    county = Column(String(100), nullable=True)
-    city = Column(String(100), nullable=True)
-    postal_number = Column(String(6), nullable=True)
-    street = Column(String(100), nullable=True)
-    house_number = Column(String(20), nullable=True)
-    email = Column(String(320), nullable=True)
-    webpage = Column(String(2083), nullable=True) 
+# class CompanyInfo(Base):
+#     __tablename__ = "company_info"
+#     id = Column(Integer, primary_key=True, index=True)
+#     record_created_at = Column(
+#         DateTime(timezone=True),
+#         server_default=func.now())
+#     is_current = Column(Boolean, default=False)
+#     full_name = Column(String(250), nullable=False)
+#     legal_form = Column(String(100), nullable=False)
+#     krs_number = Column(String(14), nullable=False)
+#     nip_number = Column(String(10), nullable=False)
+#     regon_number = Column(String(14), nullable=False)
+#     country = Column(String(100), nullable=True)
+#     voivodeship = Column(String(100), nullable=True)
+#     municipality = Column(String(100), nullable=True)
+#     county = Column(String(100), nullable=True)
+#     city = Column(String(100), nullable=True)
+#     postal_number = Column(String(6), nullable=True)
+#     street = Column(String(100), nullable=True)
+#     house_number = Column(String(20), nullable=True)
+#     email = Column(String(320), nullable=True)
+#     webpage = Column(String(2083), nullable=True) 
 
 
-class CompanyInfoDetails(Base):
-    __tablename__ = "company_info_details"
-    id = Column(Integer, primary_key=True, index=True)
-    is_current = Column(Boolean, default=False)
-    record_created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now())
-    registered_at_krs_system_date = Column(Date)
+# class CompanyInfoDetails(Base):
+#     __tablename__ = "company_info_details"
+#     id = Column(Integer, primary_key=True, index=True)
+#     is_current = Column(Boolean, default=False)
+#     record_created_at = Column(
+#         DateTime(timezone=True),
+#         server_default=func.now())
+#     registered_at_krs_system_date = Column(Date)
 
 

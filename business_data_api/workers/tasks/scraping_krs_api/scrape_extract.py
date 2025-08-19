@@ -11,8 +11,9 @@ from logging_utils import setup_logger
 from business_data_api.db import create_sync_sessionmaker
 from business_data_api.db.models import (
     RawKSRAPIFullExtract,
-    CompanyInfo,
-    CompanyInfoDetails)
+    # CompanyInfo,
+    # CompanyInfoDetails
+    )
 from business_data_api.scraping.krs_api.model import KRSApi
 from business_data_api.scraping.exceptions import (
     EntityNotFoundException,
